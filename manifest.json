@@ -1,0 +1,38 @@
+{
+  "name": "Sổ Thu Chi - Quản Lý Tài Chính Thông Minh",
+  "short_name": "Sổ Thu Chi",
+  "description": "Ứng dụng quản lý thu chi và tài chính cá nhân gia đình thông minh",
+  "start_url": "/index.html",
+  "scope": "/",
+  "id": "/index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

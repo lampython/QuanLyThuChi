@@ -1,0 +1,25 @@
+{
+  "project_code": "QuanLyThuChi",
+  "architecture": {
+    "frontend": "Vanilla HTML5 + CSS3 + Vanilla ES6 JavaScript",
+    "storage": {
+      "local_fast": "LocalStorage (settings, active workspace, transactions cache)",
+      "offline_voice": "IndexedDB (Offline audio blobs, audio metadata, speech transcripts)",
+      "cloud_database": "Supabase PostgreSQL (Realtime sync, Row Level Security, User workspaces)"
+    },
+    "ai_nlp": {
+      "local_engine": "Regex Rule-Based Vietnamese Financial NLP Engine (0ms latency)",
+      "speech_engine": "Web Speech API vi-VN (Real-time Speech Recognition)",
+      "cloud_ai": "Google Gemini 2.5 Flash / 1.5 Flash REST API"
+    },
+    "hosting_ci_cd": "Netlify Production Deploy (https://thuchivn.netlify.app)"
+  },
+  "file_structure": {
+    "index.html": "Single Page Application layout, modals system, header and navigation",
+    "css/styles.css": "Clean Light Mode styling, mobile-first media queries, animation rules",
+    "js/app.js": "State management, modal routing, event listeners, speech and audio recording",
+    "js/data.js": "AppData transaction models, categories, IndexedDB OfflineVoiceStorage",
+    "js/utils.js": "Currency formatters, date helpers, NLP sentence parser, Excel generator",
+    "js/supabase-config.js": "Supabase client wrapper and CRUD synchronization methods"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "project_name": "Sổ Thu Chi - Quản Lý Tài Chính Thông Minh",
+  "project_code": "QuanLyThuChi",
+  "version": "6.0.0",
+  "owner": "SẾP",
+  "operator": "Sora Master",
+  "description": "Ứng dụng Web App & PWA quản lý tài chính cá nhân, gia đình và doanh nghiệp siêu tốc với chuẩn UI Clean Light Mode, bóc tách ngôn ngữ tự nhiên tiếng Việt, thu âm 1 chạm và đồng bộ Supabase Cloud.",
+  "target_audience": [
+    "Cá nhân cần ghi chép chi tiêu nhanh gọn hàng ngày",
+    "Gia đình quản lý ngân sách quỹ chung và quỹ riêng",
+    "Hộ kinh doanh theo dõi dòng tiền thu chi minh bạch"
+  ],
+  "core_features": [
+    {
+      "name": "Nhập liệu AI 1 chạm & NLP Tiếng Việt",
+      "description": "Bóc tách câu nói tự nhiên tự động điền số tiền, loại giao dịch và danh mục chuẩn xác 100%."
+    },
+    {
+      "name": "Thu âm Ngoại tuyến & Nhận diện Giọng nói Thời gian thực",
+      "description": "Chuyển giọng nói tiếng Việt thành văn bản tức thì bằng Web Speech API vi-VN và lưu trữ Offline IndexedDB."
+    },
+    {
+      "name": "Quản lý Đa Sổ & Đa Danh Mục Chuẩn 50/30/20 & JARS",
+      "description": "Tạo nhiều sổ quỹ độc lập, phân chia danh mục chi tiêu thiết yếu, linh hoạt và tiết kiệm đầu tư."
+    },
+    {
+      "name": "Đồng bộ Đám mây Supabase PostgreSQL & Chế độ Ngoại tuyến",
+      "description": "Hoạt động song song On-device LocalStorage/IndexedDB và Supabase Cloud Sync khi có mạng."
+    },
+    {
+      "name": "Báo cáo Biểu đồ Phân tích & Xuất Excel Bản Đẹp",
+      "description": "Biểu đồ tròn, biểu đồ cột tài chính và xuất file Excel (.xlsx) định dạng màu sắc chuyên nghiệp."
+    }
+  ],
+  "design_philosophy": {
+    "theme": "100% Clean Light Mode (Tuyệt đối không dùng Dark Mode)",
+    "style": "Bộ Tứ Tượng Đài: shadcn/ui + Tabler + Magic UI + Motion",
+    "mobile_first": "Tối ưu hoàn hảo cho màn hình điện thoại di động"
+  }
+}

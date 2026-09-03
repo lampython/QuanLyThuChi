@@ -1,0 +1,15 @@
+﻿# Environment & Secrets
+deploy.js
+.env
+*.env
+
+# Local directories
+.netlify/
+.agents/
+backup/
+*.zip
+*.log
+
+# OS generated
+Thumbs.db
+.DS_Store
