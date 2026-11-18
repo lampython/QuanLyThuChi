@@ -1,5 +1,5 @@
-// Sổ Thu Chi - Service Worker v1.7.8 (Network-First Smart Auto-Update Architecture)
-const CACHE_NAME = 'sothuchi-offline-v1.7.8';
+// Sổ Thu Chi - Service Worker v1.7.9 (Network-First Smart Auto-Update Architecture)
+const CACHE_NAME = 'sothuchi-offline-v1.7.9';
 
 const OFFLINE_URLS = [
     '/',

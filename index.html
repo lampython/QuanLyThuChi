@@ -38,7 +38,7 @@
     <script src="libs/supabase.min.js"></script>
     
     <!-- App CSS -->
-    <link rel="stylesheet" href="css/styles.css?v=1.7.8">
+    <link rel="stylesheet" href="css/styles.css?v=1.7.9">
 </head>
 <body>
     <div class="app-container">
@@ -84,8 +84,8 @@
                     <div class="period-pill-select">
                         <i class="fa-regular fa-calendar"></i>
                         <select id="periodFilter" class="period-select-field">
-                            <option value="today" selected>Hôm nay</option>
-                            <option value="this_month">Tháng này</option>
+                            <option value="this_month" selected>Tháng này</option>
+                            <option value="today">Hôm nay</option>
                             <option value="yesterday">Hôm qua</option>
                             <option value="last_month">Tháng trước</option>
                             <option value="all">Toàn thời gian</option>
@@ -208,7 +208,7 @@
                             <div class="menu-divider"></div>
                             <div class="menu-group-label" style="font-size: 10px; font-weight: 700; color: #94a3b8; padding: 4px 10px; text-transform: uppercase; letter-spacing: 0.5px;">Tiện ích & Cập nhật</div>
                             <button class="menu-item-btn btn-menu-force-update" id="btnMenuForceUpdate" onclick="handleForceUpdateApp()" style="background: #eff6ff; border: 1px solid #bfdbfe;">
-                                <i class="fa-solid fa-arrows-rotate" style="color: #2563eb;"></i> <span>Cập nhật ứng dụng (v1.7.8)</span>
+                                <i class="fa-solid fa-arrows-rotate" style="color: #2563eb;"></i> <span>Cập nhật ứng dụng (v1.7.9)</span>
                                 <span class="badge-update-action" style="font-size: 10px; padding: 2px 7px; border-radius: 6px; background: #2563eb; color: #ffffff; font-weight: 800; margin-left: auto;">Nâng cấp 🔥</span>
                             </button>
                             <div class="menu-item-toggle-row" style="display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; font-size: 12.5px; color: var(--text-main);">
@@ -258,7 +258,7 @@
                             </button>
 
                             <div style="padding: 10px 12px 4px 12px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9; margin-top: 4px;">
-                                <span>Sổ Thu Chi • Phiên bản 1.7.8 (Mới Nhất)</span>
+                                <span>Sổ Thu Chi • Phiên bản 1.7.9 (Mới Nhất)</span>
                             </div>
                         </div>
                     </div>
@@ -266,12 +266,12 @@
             </div>
         </header>
 
-        <!-- Banner Tự Động Nhắc Nhở Cập Nhật Phiên Bản Mới v1.7.8 -->
+        <!-- Banner Tự Động Nhắc Nhở Cập Nhật Phiên Bản Mới v1.7.9 -->
         <div class="update-app-banner" id="updateAppBanner" style="display: none;">
             <div class="update-banner-left">
                 <span class="update-pulse-icon">🚀</span>
                 <div class="update-banner-text">
-                    <strong>Đã có phiên bản mới v1.7.8!</strong>
+                    <strong>Đã có phiên bản mới v1.7.9!</strong>
                     <span>Có Sổ Công Nợ, bóc tách ghi chú & thanh điều hướng Mobile.</span>
                 </div>
             </div>
@@ -1084,36 +1084,24 @@
                     <h3 class="modal-heading" style="margin: 0; font-size: 16px; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 7px;">
                         <i class="fa-solid fa-paste" style="color: #2563eb;"></i> Nhập Ghi Chú Hàng Loạt
                     </h3>
-                    <span class="badge-nlp-ai" style="font-size: 10px; background: #eff6ff; color: #2563eb; padding: 2px 8px; border-radius: 6px; font-weight: 700; border: 1px solid #bfdbfe;">AI Tự Động Xử Lý</span>
                 </div>
                 <button type="button" class="btn-close-modal" id="closeBatchNotesModalBtn" title="Đóng">&times;</button>
             </div>
 
             <div class="modal-scroll-fields" style="padding: 16px 20px; max-height: calc(85vh - 120px); overflow-y: auto;">
-                <!-- Hướng dẫn ngắn -->
-                <div class="batch-notes-guide" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; font-size: 12px; color: #475569; line-height: 1.5;">
-                    💡 <b>Mẹo:</b> Dán (Paste) nội dung từ <i>Google Keep, Apple Notes, Zalo, Notepad...</i> vào khung bên dưới. Hệ thống tự động phân tích từng dòng thành các khoản <b>Thu / Chi</b>, tự tính toán số tiền và phân loại danh mục thông minh.
-                </div>
-
                 <!-- Textarea nhập liệu -->
                 <div class="batch-textarea-wrap" style="position: relative; margin-bottom: 12px;">
-                    <textarea id="batchNotesInput" class="batch-notes-textarea" rows="6" placeholder="Dán nội dung ghi chú nhiều dòng vào đây...&#10;Ví dụ:&#10;mượn tiền đóng học phí 2160&#10;mượn chị 500k để mua khăn giấy ướt + khăn khô đa năng và dùng sinh hoạt&#10;trả tiền cho bà nội điện + nước( cấn trừ còn 340k )&#10;mượn bà nội 1tr lo viện phí và chi tiêu trong nhà ( khám 305k-22k) + thuốc 236k" style="width: 100%; border: 1.5px solid #cbd5e1; border-radius: 12px; padding: 12px; font-size: 13.5px; font-family: inherit; line-height: 1.6; resize: vertical; box-sizing: border-box; outline: none; transition: border-color 0.2s;"></textarea>
+                    <textarea id="batchNotesInput" class="batch-notes-textarea" rows="6" placeholder="Dán nội dung ghi chú nhiều dòng vào đây...&#10;Ví dụ:&#10;Ăn sáng phở bò 45k + cafe sữa 25k&#10;Đổ xăng xe máy 60k&#10;Mua đồ siêu thị (bột giặt 85k, nước rửa chén 32k)&#10;Thu tiền làm thêm dự án 2.500.000đ&#10;Cho bạn mượn tiền 500k" style="width: 100%; border: 1.5px solid #cbd5e1; border-radius: 12px; padding: 12px; font-size: 13.5px; font-family: inherit; line-height: 1.6; resize: vertical; box-sizing: border-box; outline: none; transition: border-color 0.2s;"></textarea>
                 </div>
 
                 <!-- Toolbar nút tiện ích nhanh -->
                 <div class="batch-actions-toolbar" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 16px;">
                     <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-                        <button type="button" class="btn-batch-tool" id="btnPasteSampleNotes" title="Dán 4 dòng ghi chú mẫu của Sếp để thử nghiệm">
-                            <i class="fa-solid fa-wand-magic-sparkles" style="color: #8b5cf6;"></i> Dán Mẫu Của Sếp
-                        </button>
                         <button type="button" class="btn-batch-tool" id="btnClearBatchNotes" title="Xóa trắng khung nhập">
                             <i class="fa-solid fa-trash-can" style="color: #ef4444;"></i> Xóa Trắng
                         </button>
                     </div>
                     <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-                        <button type="button" class="btn-batch-demo" id="btnTestOnDemoAccount" title="Kích hoạt Tài khoản Demo và test ngay trên sổ demo">
-                            <i class="fa-solid fa-flask" style="color: #8b5cf6;"></i> Test Trên Tài Khoản Demo
-                        </button>
                         <button type="button" class="btn-batch-parse-primary" id="btnParseBatchNotes">
                             <i class="fa-solid fa-bolt"></i> Bóc Tách & Xem Trước
                         </button>
@@ -1243,7 +1231,7 @@
                             </div>
                             <div>
                                 <label style="font-size: 11px; font-weight: 700; color: #64748b; display: block; margin-bottom: 4px;">TÊN ĐỐI TÁC / NGƯỜI NỢ:</label>
-                                <input type="text" id="newDebtContact" placeholder="Ví dụ: Bà nội, Chị..." required style="width: 100%; height: 36px; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 12.5px; box-sizing: border-box;">
+                                <input type="text" id="newDebtContact" placeholder="Ví dụ: Anh Nam, Chị Lan..." required style="width: 100%; height: 36px; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 12.5px; box-sizing: border-box;">
                             </div>
                             <div>
                                 <label style="font-size: 11px; font-weight: 700; color: #64748b; display: block; margin-bottom: 4px;">SỐ TIỀN (VNĐ):</label>
@@ -1334,15 +1322,15 @@
         </button>
     </div>
 
-    <!-- JavaScript Files (Cache Buster v1.7.8) -->
-    <script src="js/utils.js?v=1.7.8"></script>
-    <script src="js/data.js?v=1.7.8"></script>
-    <script src="js/supabase-config.js?v=1.7.8"></script>
-    <script src="js/app.js?v=1.7.8"></script>
+    <!-- JavaScript Files (Cache Buster v1.7.9) -->
+    <script src="js/utils.js?v=1.7.9"></script>
+    <script src="js/data.js?v=1.7.9"></script>
+    <script src="js/supabase-config.js?v=1.7.9"></script>
+    <script src="js/app.js?v=1.7.9"></script>
 
     <!-- PWA Offline-First Service Worker Registration & Self-Injection -->
     <script>
-        const CURRENT_APP_VERSION = '1.7.8';
+        const CURRENT_APP_VERSION = '1.7.9';
 
         // 1. Hàm Tự Động Nâng Cấp 1-Chạm (Bypass & Xóa Sạch Mọi Cache Cũ)
         window.handleForceUpdateApp = async function() {
@@ -1350,7 +1338,7 @@
             if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Đang nâng cấp...</span>';
             
             if (typeof showToast === 'function') {
-                showToast('⏳ Đang dọn dẹp bộ nhớ đệm và tải bản v1.7.8...');
+                showToast('⏳ Đang dọn dẹp bộ nhớ đệm và tải bản v1.7.9...');
             }
 
             try {
@@ -1393,9 +1381,9 @@
         }
         setTimeout(checkServerAppVersion, 1200);
 
-        // 3. Tự động ghi ngay mã HTML hiện tại vào Cache Storage mới nhất v1.7.8
+        // 3. Tự động ghi ngay mã HTML hiện tại vào Cache Storage mới nhất v1.7.9
         if ('caches' in window) {
-            caches.open('sothuchi-offline-v1.7.8').then(cache => {
+            caches.open('sothuchi-offline-v1.7.9').then(cache => {
                 if (document.documentElement && document.documentElement.outerHTML) {
                     const html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
                     cache.put('/index.html', new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } }));
@@ -1408,7 +1396,7 @@
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('./sw.js', { scope: '/' })
                 .then(reg => {
-                    console.log('✅ PWA Offline Service Worker v1.7.8 đã kích hoạt:', reg.scope);
+                    console.log('✅ PWA Offline Service Worker v1.7.9 đã kích hoạt:', reg.scope);
                     reg.update().catch(() => {});
                     
                     // Nếu phát hiện worker mới đang chờ -> Hiện banner cập nhật ngay

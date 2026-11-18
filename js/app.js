@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     AppData.init();
 
     const State = {
-        period: 'today',
+        period: 'this_month',
         startDate: '',
         endDate: '',
         type: 'all',
@@ -3790,10 +3790,8 @@ Quy tắc:
     const closeBatchNotesModalBtn = document.getElementById('closeBatchNotesModalBtn');
     const btnCancelBatchModal = document.getElementById('btnCancelBatchModal');
     const batchNotesInput = document.getElementById('batchNotesInput');
-    const btnPasteSampleNotes = document.getElementById('btnPasteSampleNotes');
     const btnClearBatchNotes = document.getElementById('btnClearBatchNotes');
     const btnParseBatchNotes = document.getElementById('btnParseBatchNotes');
-    const btnTestOnDemoAccount = document.getElementById('btnTestOnDemoAccount');
     const batchPreviewContainer = document.getElementById('batchPreviewContainer');
     const batchPreviewTbody = document.getElementById('batchPreviewTbody');
     const batchSumCount = document.getElementById('batchSumCount');
@@ -3807,9 +3805,6 @@ Quy tắc:
     const btnExitDemoMode = document.getElementById('btnExitDemoMode');
     const demoModeMenuText = document.getElementById('demoModeMenuText');
     const badgeDemoStatus = document.getElementById('badgeDemoStatus');
-
-    // Mẫu văn bản của Sếp
-    const BOSS_SAMPLE_NOTES = `mượn tiền đóng học phí 2160\n\nmượn chị 500k để mua khăn giấy ướt + khăn khô đa năng và dùng sinh hoạt\n\ntrả tiền cho bà nội điện + nước( cấn trừ còn 340k )\n\nmượn bà nội 1tr lo viện phí và chi tiêu trong nhà ( khám 305k-22k) + thuốc 236k`;
 
     let currentBatchParsedList = [];
 
@@ -3831,15 +3826,6 @@ Quy tắc:
     btnBannerOpenBatch?.addEventListener('click', openBatchNotesModal);
     closeBatchNotesModalBtn?.addEventListener('click', closeBatchNotesModal);
     btnCancelBatchModal?.addEventListener('click', closeBatchNotesModal);
-
-    // Dán mẫu của Sếp
-    btnPasteSampleNotes?.addEventListener('click', () => {
-        if (batchNotesInput) {
-            batchNotesInput.value = BOSS_SAMPLE_NOTES;
-            handleParseBatchText();
-            showToast('✅ Đã nạp 4 dòng ghi chú mẫu của Sếp!');
-        }
-    });
 
     // Xóa trắng
     btnClearBatchNotes?.addEventListener('click', () => {
@@ -4035,25 +4021,6 @@ Quy tắc:
             console.error('Lỗi lưu giao dịch hàng loạt:', err);
             showToast('Đã xảy ra lỗi khi lưu giao dịch.');
         }
-    });
-
-    // Nút Test Trên Tài Khoản Demo (1-Click Automated Boss Demo Test)
-    btnTestOnDemoAccount?.addEventListener('click', async () => {
-        // 1. Kích hoạt Chế độ Demo
-        AppData.setDemoMode(true);
-        updateDemoModeUI();
-
-        // 2. Điền mẫu và bóc tách
-        const sampleTxs = Utils.parseBatchNotes(BOSS_SAMPLE_NOTES);
-        
-        // 3. Nạp thẳng vào kho giao dịch Demo
-        AppData.addBatchTransactions(sampleTxs);
-
-        // 4. Đóng modal & cập nhật giao diện
-        closeBatchNotesModal();
-        await loadTransactionsData();
-
-        showToast('🌟 Đã chuyển sang Tài Khoản Demo & nạp 4 giao dịch từ ghi chú thành công!');
     });
 
     // Chuyển đổi bật/tắt Demo Mode
