@@ -38,7 +38,7 @@
     <script src="libs/supabase.min.js"></script>
     
     <!-- App CSS -->
-    <link rel="stylesheet" href="css/styles.css?v=1.7.5">
+    <link rel="stylesheet" href="css/styles.css?v=1.7.8">
 </head>
 <body>
     <div class="app-container">
@@ -105,6 +105,17 @@
                 <button class="btn-tool-icon-circle btn-tool-offline-voice" id="btnHeaderOfflineRecord" title="Ghi âm ngoại tuyến" style="display: none !important;">
                     <i class="fa-solid fa-microphone" id="headerOfflineMicIcon"></i>
                     <span class="offline-memos-badge" id="offlineMemosBadgeCount" style="display: none;">0</span>
+                </button>
+
+                <!-- 1.8 Nút Nhập Ghi Chú Hàng Loạt (Batch Notes Import) -->
+                <button class="btn-tool-icon-circle btn-tool-batch-notes" id="btnOpenBatchNotes" title="Nhập ghi chú hàng loạt (Keep, Notes, Zalo...)">
+                    <i class="fa-solid fa-paste"></i>
+                </button>
+
+                <!-- 1.9 Nút Sổ Quản Lý Công Nợ & Vay Mượn -->
+                <button class="btn-tool-icon-circle btn-tool-debts" id="btnOpenDebtsModal" title="Sổ Quản Lý Công Nợ & Vay Mượn">
+                    <i class="fa-solid fa-handshake"></i>
+                    <span class="debts-badge" id="headerDebtsBadge" style="display: none;">0</span>
                 </button>
 
                 <!-- 2. Nút Báo cáo (Chuyển thành icon biểu đồ) -->
@@ -218,6 +229,14 @@
                                 <i class="fa-solid fa-wand-magic-sparkles" style="color: #7c3aed;"></i> <span>Cấu hình Gemini AI</span>
                                 <span class="badge-gemini-status" id="badgeGeminiStatus" style="font-size: 10px; padding: 1px 6px; border-radius: 6px; background: #ede9fe; color: #7c3aed; font-weight: 700; margin-left: auto;">Key</span>
                             </button>
+                            <button class="menu-item-btn" id="btnToggleDemoMode">
+                                <i class="fa-solid fa-flask" style="color: #8b5cf6;"></i> <span id="demoModeMenuText">Chế độ Tài Khoản Demo</span>
+                                <span class="badge-demo-status" id="badgeDemoStatus" style="font-size: 10px; padding: 2px 7px; border-radius: 6px; background: #ede9fe; color: #7c3aed; font-weight: 700; margin-left: auto;">Trải nghiệm</span>
+                            </button>
+                            <button class="menu-item-btn" id="btnMenuOpenDebts">
+                                <i class="fa-solid fa-handshake" style="color: #0d9488;"></i> <span>Sổ Quản Lý Công Nợ</span>
+                                <span class="badge-debts-menu" id="menuDebtsCountBadge" style="font-size: 10px; padding: 2px 7px; border-radius: 6px; background: #ccfbf1; color: #0d9488; font-weight: 700; margin-left: auto;">0 khoản</span>
+                            </button>
                             <button class="menu-item-btn" id="btnMenuSetOpeningBalance">
                                 <i class="fa-solid fa-coins" style="color: #f59e0b;"></i> <span>Số dư ban đầu (Đầu kỳ)</span>
                             </button>
@@ -235,7 +254,7 @@
                             </button>
 
                             <div style="padding: 10px 12px 4px 12px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9; margin-top: 4px;">
-                                <span>Sổ Thu Chi • Phiên bản 1.7.5</span>
+                                <span>Sổ Thu Chi • Phiên bản 1.7.7</span>
                             </div>
                         </div>
                     </div>
@@ -253,6 +272,20 @@
             </div>
             <div class="inv-alert-actions" id="invAlertActions">
                 <!-- Nút Đồng Ý / Từ Chối sẽ được chèn động -->
+            </div>
+        </div>
+
+        <!-- Banner Chế Độ Demo Thử Nghiệm -->
+        <div class="demo-mode-alert-banner" id="demoModeBanner" style="display: none;">
+            <div class="demo-banner-content">
+                <span class="demo-sparkle-icon">🌟</span>
+                <div class="demo-banner-text">
+                    <strong>Đang ở Chế độ Tài Khoản Demo</strong> — Trải nghiệm nhập liệu & bóc tách ghi chú an toàn (không ảnh hưởng dữ liệu chính).
+                </div>
+            </div>
+            <div class="demo-banner-actions">
+                <button type="button" class="btn-demo-open-batch" id="btnBannerOpenBatch"><i class="fa-solid fa-paste"></i> Nhập Ghi Chú</button>
+                <button type="button" class="btn-demo-exit" id="btnExitDemoMode"><i class="fa-solid fa-arrow-right-from-bracket"></i> Thoát Demo</button>
             </div>
         </div>
 
@@ -278,6 +311,8 @@
                         <span>Thu <b class="sub-income-val" id="subTotalIncome">0 đ</b></span>
                         <span class="sub-dot">•</span>
                         <span>Chi <b class="sub-expense-val" id="subTotalExpense">0 đ</b></span>
+                        <span class="sub-dot">•</span>
+                        <span id="btnDebtQuickSummary" title="Bấm xem Sổ Công Nợ" style="cursor: pointer; color: #0d9488;"><i class="fa-solid fa-handshake"></i> Nợ: <b id="subDebtBalanceVal" style="color: #0d9488;">0 đ</b></span>
                     </div>
                 </div>
 
@@ -316,6 +351,21 @@
                         <span>Chi</span>
                     </button>
                 </div>
+
+                <!-- Dải Tiện Ích Công Nợ Nổi Bật Dành Cho Điện Thoại (Mobile Debt Quick Strip) -->
+                <div class="mobile-debt-quick-strip" id="mobileDebtQuickStrip" title="Chạm để mở Sổ Quản Lý Công Nợ">
+                    <div class="debt-strip-left">
+                        <span class="debt-strip-icon-circle"><i class="fa-solid fa-handshake"></i></span>
+                        <div class="debt-strip-info">
+                            <span class="debt-strip-title">Sổ Công Nợ & Vay Mượn:</span>
+                            <span class="debt-strip-val" id="mobileDebtBalanceVal">0 ₫</span>
+                        </div>
+                    </div>
+                    <div class="debt-strip-right">
+                        <span class="debt-strip-badge" id="mobileDebtCountBadge">0 khoản</span>
+                        <i class="fa-solid fa-chevron-right debt-strip-arrow"></i>
+                    </div>
+                </div>
             </section>
 
             <!-- ==================== BẢNG GIAO DỊCH CHI TIẾT CHUẨN MẪU ==================== -->
@@ -340,6 +390,15 @@
                                 <option value="expense">Khoản chi (-)</option>
                             </select>
                         </div>
+
+                        <button type="button" class="btn-table-debts-pill" id="btnTableOpenDebts" title="Mở Sổ Quản Lý Công Nợ & Vay Mượn">
+                            <i class="fa-solid fa-handshake"></i> <span>Sổ Công Nợ</span>
+                            <span class="debts-pill-badge" id="tableDebtsBadge" style="display: none;">0</span>
+                        </button>
+
+                        <button type="button" class="btn-batch-import-pill" id="btnBatchImportPill" title="Dán nội dung từ phần mềm ghi chú khác">
+                            <i class="fa-solid fa-paste"></i> <span>Dán Ghi Chú</span>
+                        </button>
                     </div>
                 </div>
 
@@ -996,6 +1055,254 @@
         </div>
     </div>
 
+    <!-- ==================== MODAL: NHẬP GHI CHÚ HÀNG LOẠT (BATCH NOTES PARSER) ==================== -->
+    <div class="modal-overlay" id="batchNotesModal">
+        <div class="modal-card modal-card-wide" style="max-width: 820px; width: 95%;">
+            <div class="modal-top" style="padding: 16px 20px 12px; border-bottom: 1px solid #f1f5f9; justify-content: space-between;">
+                <div class="modal-title-with-badge" style="display: flex; align-items: center; gap: 8px;">
+                    <h3 class="modal-heading" style="margin: 0; font-size: 16px; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 7px;">
+                        <i class="fa-solid fa-paste" style="color: #2563eb;"></i> Nhập Ghi Chú Hàng Loạt
+                    </h3>
+                    <span class="badge-nlp-ai" style="font-size: 10px; background: #eff6ff; color: #2563eb; padding: 2px 8px; border-radius: 6px; font-weight: 700; border: 1px solid #bfdbfe;">AI Tự Động Xử Lý</span>
+                </div>
+                <button type="button" class="btn-close-modal" id="closeBatchNotesModalBtn" title="Đóng">&times;</button>
+            </div>
+
+            <div class="modal-scroll-fields" style="padding: 16px 20px; max-height: calc(85vh - 120px); overflow-y: auto;">
+                <!-- Hướng dẫn ngắn -->
+                <div class="batch-notes-guide" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; font-size: 12px; color: #475569; line-height: 1.5;">
+                    💡 <b>Mẹo:</b> Dán (Paste) nội dung từ <i>Google Keep, Apple Notes, Zalo, Notepad...</i> vào khung bên dưới. Hệ thống tự động phân tích từng dòng thành các khoản <b>Thu / Chi</b>, tự tính toán số tiền và phân loại danh mục thông minh.
+                </div>
+
+                <!-- Textarea nhập liệu -->
+                <div class="batch-textarea-wrap" style="position: relative; margin-bottom: 12px;">
+                    <textarea id="batchNotesInput" class="batch-notes-textarea" rows="6" placeholder="Dán nội dung ghi chú nhiều dòng vào đây...&#10;Ví dụ:&#10;mượn tiền đóng học phí 2160&#10;mượn chị 500k để mua khăn giấy ướt + khăn khô đa năng và dùng sinh hoạt&#10;trả tiền cho bà nội điện + nước( cấn trừ còn 340k )&#10;mượn bà nội 1tr lo viện phí và chi tiêu trong nhà ( khám 305k-22k) + thuốc 236k" style="width: 100%; border: 1.5px solid #cbd5e1; border-radius: 12px; padding: 12px; font-size: 13.5px; font-family: inherit; line-height: 1.6; resize: vertical; box-sizing: border-box; outline: none; transition: border-color 0.2s;"></textarea>
+                </div>
+
+                <!-- Toolbar nút tiện ích nhanh -->
+                <div class="batch-actions-toolbar" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                        <button type="button" class="btn-batch-tool" id="btnPasteSampleNotes" title="Dán 4 dòng ghi chú mẫu của Sếp để thử nghiệm">
+                            <i class="fa-solid fa-wand-magic-sparkles" style="color: #8b5cf6;"></i> Dán Mẫu Của Sếp
+                        </button>
+                        <button type="button" class="btn-batch-tool" id="btnClearBatchNotes" title="Xóa trắng khung nhập">
+                            <i class="fa-solid fa-trash-can" style="color: #ef4444;"></i> Xóa Trắng
+                        </button>
+                    </div>
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                        <button type="button" class="btn-batch-demo" id="btnTestOnDemoAccount" title="Kích hoạt Tài khoản Demo và test ngay trên sổ demo">
+                            <i class="fa-solid fa-flask" style="color: #8b5cf6;"></i> Test Trên Tài Khoản Demo
+                        </button>
+                        <button type="button" class="btn-batch-parse-primary" id="btnParseBatchNotes">
+                            <i class="fa-solid fa-bolt"></i> Bóc Tách & Xem Trước
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Khối Xem Trước Kết Quả (Interactive Preview Table) -->
+                <div class="batch-preview-container" id="batchPreviewContainer" style="display: none; border-top: 1px solid #e2e8f0; padding-top: 14px;">
+                    <!-- Thẻ thống kê tóm tắt -->
+                    <div class="batch-summary-cards" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px;">
+                        <div class="batch-sum-card" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 12px; text-align: center;">
+                            <span style="font-size: 11px; color: #64748b; font-weight: 600;">SỐ GIAO DỊCH</span>
+                            <div id="batchSumCount" style="font-size: 17px; font-weight: 800; color: #0f172a; margin-top: 2px;">0</div>
+                        </div>
+                        <div class="batch-sum-card" style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 10px; padding: 8px 12px; text-align: center;">
+                            <span style="font-size: 11px; color: #059669; font-weight: 600;">TỔNG THU (+)</span>
+                            <div id="batchSumIncome" style="font-size: 17px; font-weight: 800; color: #059669; margin-top: 2px;">0 đ</div>
+                        </div>
+                        <div class="batch-sum-card" style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 8px 12px; text-align: center;">
+                            <span style="font-size: 11px; color: #dc2626; font-weight: 600;">TỔNG CHI (-)</span>
+                            <div id="batchSumExpense" style="font-size: 17px; font-weight: 800; color: #dc2626; margin-top: 2px;">0 đ</div>
+                        </div>
+                    </div>
+
+                    <!-- Bảng chi tiết từng giao dịch -->
+                    <div class="batch-table-scroll-wrap" style="max-height: 290px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 10px; background: #ffffff;">
+                        <table class="batch-preview-table" style="width: 100%; border-collapse: collapse; font-size: 12.5px;">
+                            <thead style="background: #f8fafc; position: sticky; top: 0; z-index: 10;">
+                                <tr>
+                                    <th style="padding: 9px 8px; text-align: center; width: 36px; border-bottom: 1px solid #cbd5e1; color: #64748b; font-weight: 700;">STT</th>
+                                    <th style="padding: 9px 8px; text-align: center; width: 90px; border-bottom: 1px solid #cbd5e1; color: #64748b; font-weight: 700;">LOẠI</th>
+                                    <th style="padding: 9px 8px; text-align: right; width: 140px; border-bottom: 1px solid #cbd5e1; color: #64748b; font-weight: 700;">SỐ TIỀN</th>
+                                    <th style="padding: 9px 8px; text-align: left; width: 165px; border-bottom: 1px solid #cbd5e1; color: #64748b; font-weight: 700;">DANH MỤC</th>
+                                    <th style="padding: 9px 8px; text-align: left; border-bottom: 1px solid #cbd5e1; color: #64748b; font-weight: 700;">NỘI DUNG / MÓN CON</th>
+                                    <th style="padding: 9px 6px; text-align: center; width: 45px; border-bottom: 1px solid #cbd5e1; color: #64748b; font-weight: 700;">XÓA</th>
+                                </tr>
+                            </thead>
+                            <tbody id="batchPreviewTbody">
+                                <!-- Render động từng hàng -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Modal -->
+            <div class="modal-actions" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-top: 1px solid #f1f5f9; background: #fafafa;">
+                <button type="button" class="btn-cancel" id="btnCancelBatchModal" style="padding: 8px 18px;">Hủy Bỏ</button>
+                <button type="button" class="btn-save" id="btnSaveBatchTransactions" style="display: none; padding: 8px 24px; background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                    <i class="fa-solid fa-cloud-arrow-up"></i> Lưu Tất Cả Vào Sổ (<span id="batchSaveCountBtn">0</span>)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MODAL: SỔ QUẢN LÝ CÔNG NỢ & VAY MƯỢN ==================== -->
+    <div class="modal-overlay" id="debtModal">
+        <div class="modal-card modal-card-wide" style="max-width: 860px; width: 95%;">
+            <div class="modal-top" style="padding: 16px 20px 12px; border-bottom: 1px solid #f1f5f9; justify-content: space-between;">
+                <div class="modal-title-with-badge" style="display: flex; align-items: center; gap: 8px;">
+                    <h3 class="modal-heading" style="margin: 0; font-size: 16px; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 7px;">
+                        <i class="fa-solid fa-handshake" style="color: #0d9488;"></i> Sổ Quản Lý Công Nợ & Vay Mượn
+                    </h3>
+                    <span class="badge-debts-active" id="debtsModalActiveBadge" style="font-size: 10px; background: #ccfbf1; color: #0d9488; padding: 2px 8px; border-radius: 6px; font-weight: 700; border: 1px solid #99f6e4;">0 khoản</span>
+                </div>
+                <button type="button" class="btn-close-modal" id="closeDebtModalBtn" title="Đóng">&times;</button>
+            </div>
+
+            <div class="modal-scroll-fields" style="padding: 16px 20px; max-height: calc(85vh - 120px); overflow-y: auto;">
+                <!-- 1. KHỐI THẺ THỐNG KÊ TỔNG QUAN CÔNG NỢ -->
+                <div class="debt-kpi-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px;">
+                    <div class="debt-kpi-card" style="background: #fef2f2; border: 1.5px solid #fecaca; border-radius: 12px; padding: 12px 14px; text-align: left;">
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <span style="font-size: 11px; font-weight: 700; color: #b91c1c; text-transform: uppercase;">🔴 Tôi Đang Nợ (Phải trả)</span>
+                            <i class="fa-solid fa-arrow-down-long" style="color: #dc2626; font-size: 13px;"></i>
+                        </div>
+                        <div id="debtKpiBorrow" style="font-size: 20px; font-weight: 800; color: #dc2626; margin-top: 4px;">0 ₫</div>
+                        <span id="debtKpiBorrowCount" style="font-size: 11px; color: #ef4444; font-weight: 600;">0 khoản nợ</span>
+                    </div>
+
+                    <div class="debt-kpi-card" style="background: #ecfdf5; border: 1.5px solid #a7f3d0; border-radius: 12px; padding: 12px 14px; text-align: left;">
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <span style="font-size: 11px; font-weight: 700; color: #047857; text-transform: uppercase;">🟢 Nợ Tôi (Phải thu)</span>
+                            <i class="fa-solid fa-arrow-up-long" style="color: #059669; font-size: 13px;"></i>
+                        </div>
+                        <div id="debtKpiLend" style="font-size: 20px; font-weight: 800; color: #059669; margin-top: 4px;">0 ₫</div>
+                        <span id="debtKpiLendCount" style="font-size: 11px; color: #10b981; font-weight: 600;">0 khoản cho vay</span>
+                    </div>
+
+                    <div class="debt-kpi-card" style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; text-align: left;">
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <span style="font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase;">⚖️ Chênh Lệch Ròng</span>
+                            <i class="fa-solid fa-scale-balanced" style="color: #64748b; font-size: 13px;"></i>
+                        </div>
+                        <div id="debtKpiNet" style="font-size: 20px; font-weight: 800; color: #0f172a; margin-top: 4px;">0 ₫</div>
+                        <span id="debtKpiNetNote" style="font-size: 11px; color: #64748b; font-weight: 600;">Thu hồi - Chi trả</span>
+                    </div>
+                </div>
+
+                <!-- 2. THANH TABS BỘ LỌC & NÚT THÊM NỢ -->
+                <div class="debt-toolbar-row" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
+                    <div class="debt-filter-tabs" style="display: flex; gap: 4px; background: #f1f5f9; padding: 3px; border-radius: 8px;">
+                        <button type="button" class="debt-tab-btn active" data-tab="all" id="tabDebtAll">Tất Cả (<span id="tabCountAll">0</span>)</button>
+                        <button type="button" class="debt-tab-btn" data-tab="borrow" id="tabDebtBorrow">Tôi Nợ (<span id="tabCountBorrow">0</span>)</button>
+                        <button type="button" class="debt-tab-btn" data-tab="lend" id="tabDebtLend">Nợ Tôi (<span id="tabCountLend">0</span>)</button>
+                        <button type="button" class="debt-tab-btn" data-tab="settled" id="tabDebtSettled">Đã Xong (<span id="tabCountSettled">0</span>)</button>
+                    </div>
+
+                    <button type="button" class="btn-add-debt-toggle" id="btnToggleAddDebtForm" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 8px; background: #0d9488; color: #ffffff; border: none; font-size: 12.5px; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+                        <i class="fa-solid fa-plus"></i> Ghi Nợ Mới
+                    </button>
+                </div>
+
+                <!-- 3. KHUNG FORM THÊM KHOẢN NỢ (ẨN/HIỆN ĐỘNG) -->
+                <div class="add-debt-form-card" id="addDebtFormWrap" style="display: none; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; animation: slideDown 0.2s ease;">
+                    <div style="font-weight: 800; font-size: 13.5px; color: #0f172a; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                        <i class="fa-solid fa-file-pen" style="color: #0d9488;"></i> Thêm Khoản Công Nợ Mới
+                    </div>
+                    <form id="newDebtForm">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 10px;">
+                            <div>
+                                <label style="font-size: 11px; font-weight: 700; color: #64748b; display: block; margin-bottom: 4px;">LOẠI CÔNG NỢ:</label>
+                                <select id="newDebtType" style="width: 100%; height: 36px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 12.5px; font-weight: 700;">
+                                    <option value="borrow">🔴 Tôi Nợ (Đi vay / Mượn nợ)</option>
+                                    <option value="lend">🟢 Nợ Tôi (Cho vay / Cho mượn)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size: 11px; font-weight: 700; color: #64748b; display: block; margin-bottom: 4px;">TÊN ĐỐI TÁC / NGƯỜI NỢ:</label>
+                                <input type="text" id="newDebtContact" placeholder="Ví dụ: Bà nội, Chị..." required style="width: 100%; height: 36px; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 12.5px; box-sizing: border-box;">
+                            </div>
+                            <div>
+                                <label style="font-size: 11px; font-weight: 700; color: #64748b; display: block; margin-bottom: 4px;">SỐ TIỀN (VNĐ):</label>
+                                <input type="number" id="newDebtAmount" placeholder="Ví dụ: 1000000" min="1000" required style="width: 100%; height: 36px; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 12.5px; font-weight: 700; box-sizing: border-box;">
+                            </div>
+                            <div>
+                                <label style="font-size: 11px; font-weight: 700; color: #64748b; display: block; margin-bottom: 4px;">HẠN TRẢ (TÙY CHỌN):</label>
+                                <input type="date" id="newDebtDueDate" style="width: 100%; height: 36px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 12.5px; box-sizing: border-box;">
+                            </div>
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <label style="font-size: 11px; font-weight: 700; color: #64748b; display: block; margin-bottom: 4px;">GHI CHÚ / MỤC ĐÍCH:</label>
+                            <input type="text" id="newDebtNote" placeholder="Ví dụ: Lo viện phí, tiền học, chi tiêu sinh hoạt..." style="width: 100%; height: 36px; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 12.5px; box-sizing: border-box;">
+                        </div>
+                        <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                            <button type="button" class="btn-cancel" id="btnCancelAddDebt" style="padding: 6px 14px; font-size: 12px;">Hủy Bỏ</button>
+                            <button type="submit" class="btn-save" style="padding: 6px 18px; font-size: 12.5px; background: #0d9488;">Lưu Khoản Nợ</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- 4. DANH SÁCH CÁC KHOẢN CÔNG NỢ (GRID) -->
+                <div class="debts-cards-list" id="debtsCardsList" style="display: flex; flex-direction: column; gap: 10px;">
+                    <!-- Render động từng thẻ công nợ bằng JS -->
+                </div>
+
+                <!-- Trạng thái trống -->
+                <div class="empty-debts-state" id="emptyDebtsState" style="display: none; text-align: center; padding: 36px 16px;">
+                    <div style="font-size: 38px; color: #cbd5e1; margin-bottom: 8px;"><i class="fa-solid fa-handshake-slash"></i></div>
+                    <div style="font-weight: 700; font-size: 14px; color: #64748b;">Chưa có khoản công nợ nào.</div>
+                    <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">Ghi chú mượn tiền hoặc cho vay sẽ tự động hiển thị tại đây.</div>
+                </div>
+            </div>
+
+            <!-- Footer Modal -->
+            <div class="modal-actions" style="display: flex; justify-content: flex-end; padding: 12px 20px; border-top: 1px solid #f1f5f9; background: #fafafa;">
+                <button type="button" class="btn-cancel" id="btnCloseDebtModal" style="padding: 8px 24px;">Đóng Sổ Công Nợ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== THANH ĐIỀU HƯỚNG DƯỚI ĐÁY DÀNH CHO ĐIỆN THOẠI (MOBILE BOTTOM NAVIGATION) ==================== -->
+    <nav class="mobile-bottom-nav" id="mobileBottomNav">
+        <button type="button" class="mobile-nav-item active" id="btnNavHome" title="Sổ Thu Chi">
+            <div class="mobile-nav-icon-wrap">
+                <i class="fa-solid fa-wallet"></i>
+            </div>
+            <span class="mobile-nav-label">Thu Chi</span>
+        </button>
+
+        <button type="button" class="mobile-nav-item" id="btnNavDebts" title="Sổ Quản Lý Công Nợ & Vay Mượn">
+            <div class="mobile-nav-icon-wrap">
+                <i class="fa-solid fa-handshake"></i>
+                <span class="mobile-nav-badge" id="bottomNavDebtsBadge" style="display: none;">0</span>
+            </div>
+            <span class="mobile-nav-label">Công Nợ</span>
+        </button>
+
+        <button type="button" class="mobile-nav-item mobile-nav-add-btn" id="btnNavQuickAdd" title="Thêm giao dịch mới">
+            <div class="mobile-nav-add-circle">
+                <i class="fa-solid fa-plus"></i>
+            </div>
+            <span class="mobile-nav-label">Ghi Chép</span>
+        </button>
+
+        <button type="button" class="mobile-nav-item" id="btnNavBatchNotes" title="Nhập ghi chú hàng loạt">
+            <div class="mobile-nav-icon-wrap">
+                <i class="fa-solid fa-paste"></i>
+            </div>
+            <span class="mobile-nav-label">Dán Note</span>
+        </button>
+
+        <button type="button" class="mobile-nav-item" id="btnNavReports" title="Báo cáo & Phân tích biểu đồ">
+            <div class="mobile-nav-icon-wrap">
+                <i class="fa-solid fa-chart-column"></i>
+            </div>
+            <span class="mobile-nav-label">Báo Cáo</span>
+        </button>
+    </nav>
+
     <!-- Offline Audio Recording Floating Indicator -->
     <div class="offline-recording-pill" id="offlineRecordingPill" style="display: none;">
         <div class="rec-pulse-dot"></div>
@@ -1006,17 +1313,17 @@
         </button>
     </div>
 
-    <!-- JavaScript Files (Cache Buster v1.7.5) -->
-    <script src="js/utils.js?v=1.7.5"></script>
-    <script src="js/data.js?v=1.7.5"></script>
-    <script src="js/supabase-config.js?v=1.7.5"></script>
-    <script src="js/app.js?v=1.7.5"></script>
+    <!-- JavaScript Files (Cache Buster v1.7.8) -->
+    <script src="js/utils.js?v=1.7.8"></script>
+    <script src="js/data.js?v=1.7.8"></script>
+    <script src="js/supabase-config.js?v=1.7.8"></script>
+    <script src="js/app.js?v=1.7.8"></script>
 
     <!-- PWA Offline-First Service Worker Registration & Self-Injection -->
     <script>
         // 1. Tự động ghi ngay mã HTML hiện tại vào Cache Storage (Bảo hiểm 100% không bao giờ trắng trang)
         if ('caches' in window) {
-            caches.open('sothuchi-offline-v1.7.5').then(cache => {
+            caches.open('sothuchi-offline-v1.7.8').then(cache => {
                 if (document.documentElement && document.documentElement.outerHTML) {
                     const html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
                     cache.put('/index.html', new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } }));

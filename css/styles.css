@@ -2627,12 +2627,12 @@ button, input, select {
 /* ==================== DEDICATED ULTRA-COMPACT FINTECH MOBILE SYSTEM ==================== */
 @media (max-width: 768px) {
     .app-container { 
-        padding: 8px 10px 24px; 
+        padding: 8px 10px 78px; /* Dành khoảng trống 78px để thanh Mobile Bottom Nav không che nội dung */
     }
     
     .app-header-exact {
         display: grid !important;
-        grid-template-columns: auto 1fr auto auto auto auto auto !important;
+        grid-template-columns: auto 1fr auto auto auto auto auto auto !important;
         grid-template-rows: auto auto !important;
         gap: 8px 3px !important;
         align-items: center !important;
@@ -2700,6 +2700,10 @@ button, input, select {
     }
 
     #btnHeaderOfflineRecord {
+        display: none !important;
+    }
+
+    #btnOpenBatchNotes {
         grid-column: 3 / 4 !important;
         grid-row: 1 / 2 !important;
         width: 30px !important;
@@ -2709,16 +2713,17 @@ button, input, select {
         display: inline-flex !important;
     }
 
-    #btnOpenReports {
+    #btnOpenDebtsModal {
         grid-column: 4 / 5 !important;
         grid-row: 1 / 2 !important;
         width: 30px !important;
         height: 30px !important;
         font-size: 11.5px !important;
         flex-shrink: 0 !important;
+        display: inline-flex !important;
     }
 
-    #btnExportCsv {
+    #btnOpenReports {
         grid-column: 5 / 6 !important;
         grid-row: 1 / 2 !important;
         width: 30px !important;
@@ -2727,8 +2732,17 @@ button, input, select {
         flex-shrink: 0 !important;
     }
 
-    .notification-bell-wrap {
+    #btnExportCsv {
         grid-column: 6 / 7 !important;
+        grid-row: 1 / 2 !important;
+        width: 30px !important;
+        height: 30px !important;
+        font-size: 11.5px !important;
+        flex-shrink: 0 !important;
+    }
+
+    .notification-bell-wrap {
+        grid-column: 7 / 8 !important;
         grid-row: 1 / 2 !important;
         flex-shrink: 0 !important;
     }
@@ -2740,7 +2754,7 @@ button, input, select {
     }
 
     .user-profile-pill-wrap {
-        grid-column: 7 / 8 !important;
+        grid-column: 8 / 9 !important;
         grid-row: 1 / 2 !important;
         flex-shrink: 0 !important;
     }
@@ -2759,7 +2773,7 @@ button, input, select {
 
     /* Row 2 elements: Sổ Thu Chi dài ra vừa khít 100% toàn màn hình */
     .header-workspace-select-wrap {
-        grid-column: 1 / 7 !important;
+        grid-column: 1 / 9 !important;
         grid-row: 2 / 3 !important;
         min-width: 0 !important;
         width: 100% !important;
@@ -2810,14 +2824,98 @@ button, input, select {
         grid-template-areas:
             "header  header"
             "balance actions"
-            "income  expense" !important;
-        padding: 12px 14px !important;
-        gap: 10px 10px !important;
+            "income  expense"
+            "debts   debts" !important;
+        padding: 12px 14px 10px !important;
+        gap: 8px 10px !important;
         margin-bottom: 12px !important;
         border-radius: var(--radius-lg) !important;
         background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%) !important;
         box-shadow: 0 4px 15px -3px rgba(0, 0, 0, 0.06) !important;
         border: 1.5px solid #e2e8f0 !important;
+    }
+
+    .mobile-debt-quick-strip {
+        grid-area: debts !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        background: linear-gradient(135deg, #f0fdfa 0%, #ffffff 100%) !important;
+        border: 1px solid #99f6e4 !important;
+        border-radius: 9px !important;
+        padding: 7px 10px !important;
+        margin-top: 2px !important;
+        cursor: pointer !important;
+        transition: all 0.15s ease !important;
+        box-sizing: border-box !important;
+    }
+
+    .mobile-debt-quick-strip:active {
+        transform: scale(0.985) !important;
+        background: #ccfbf1 !important;
+    }
+
+    .debt-strip-left {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        min-width: 0 !important;
+    }
+
+    .debt-strip-icon-circle {
+        width: 24px !important;
+        height: 24px !important;
+        border-radius: 6px !important;
+        background: #ccfbf1 !important;
+        color: #0d9488 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-size: 11px !important;
+        flex-shrink: 0 !important;
+    }
+
+    .debt-strip-info {
+        display: flex !important;
+        align-items: center !important;
+        gap: 5px !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    .debt-strip-title {
+        font-size: 11px !important;
+        color: #475569 !important;
+        font-weight: 700 !important;
+    }
+
+    .debt-strip-val {
+        font-size: 12.5px !important;
+        font-weight: 800 !important;
+        color: #0d9488 !important;
+    }
+
+    .debt-strip-right {
+        display: flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+        flex-shrink: 0 !important;
+    }
+
+    .debt-strip-badge {
+        font-size: 10px !important;
+        font-weight: 700 !important;
+        color: #0d9488 !important;
+        background: #e6fffa !important;
+        border: 1px solid #99f6e4 !important;
+        padding: 1px 6px !important;
+        border-radius: 5px !important;
+    }
+
+    .debt-strip-arrow {
+        font-size: 10px !important;
+        color: #94a3b8 !important;
     }
 
     .col-balance {
@@ -4076,5 +4174,541 @@ button, input, select {
 .btn-stop-offline-rec:hover {
     background: #dc2626;
 }
+
+/* ==================== BATCH NOTES PARSER & DEMO MODE STYLES ==================== */
+.btn-tool-batch-notes {
+    background: #eff6ff !important;
+    color: #2563eb !important;
+    border-color: #bfdbfe !important;
+}
+.btn-tool-batch-notes:hover {
+    background: #dbeafe !important;
+    color: #1d4ed8 !important;
+}
+
+.btn-batch-import-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    height: 34px;
+    border-radius: 8px;
+    background: #eff6ff;
+    color: #2563eb;
+    border: 1px solid #bfdbfe;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+.btn-batch-import-pill:hover {
+    background: #dbeafe;
+    color: #1d4ed8;
+    border-color: #93c5fd;
+    transform: translateY(-1px);
+}
+
+.demo-mode-alert-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    background: linear-gradient(90deg, #ede9fe 0%, #fae8ff 100%);
+    border-bottom: 1.5px solid #d8b4fe;
+    color: #581c87;
+    font-size: 13px;
+    animation: slideDown 0.3s ease;
+}
+.demo-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.demo-sparkle-icon {
+    font-size: 18px;
+}
+.demo-banner-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.btn-demo-open-batch {
+    background: #7c3aed;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: background 0.2s;
+}
+.btn-demo-open-batch:hover {
+    background: #6d28d9;
+}
+.btn-demo-exit {
+    background: #ffffff;
+    color: #7c3aed;
+    border: 1px solid #c4b5fd;
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s;
+}
+.btn-demo-exit:hover {
+    background: #f5f3ff;
+    color: #5b21b6;
+}
+
+.btn-batch-tool {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border-radius: 8px;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #334155;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.btn-batch-tool:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+}
+
+.btn-batch-demo {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 8px;
+    background: #f5f3ff;
+    border: 1.5px solid #c4b5fd;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #7c3aed;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.btn-batch-demo:hover {
+    background: #ede9fe;
+    color: #6d28d9;
+}
+
+.btn-batch-parse-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 16px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    color: #ffffff;
+    border: none;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+    transition: all 0.2s ease;
+}
+.btn-batch-parse-primary:hover {
+    background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+    box-shadow: 0 4px 10px rgba(37, 99, 235, 0.35);
+}
+
+.batch-type-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s ease;
+    user-select: none;
+}
+.batch-type-pill.income {
+    background: #ecfdf5;
+    color: #059669;
+    border: 1px solid #a7f3d0;
+}
+.batch-type-pill.income:hover {
+    background: #d1fae5;
+}
+.batch-type-pill.expense {
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+}
+.batch-type-pill.expense:hover {
+    background: #fee2e2;
+}
+
+.batch-subitem-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    background: #eff6ff;
+    color: #2563eb;
+    border-radius: 4px;
+    font-size: 10.5px;
+    font-weight: 700;
+    margin-top: 3px;
+    border: 1px solid #bfdbfe;
+}
+
+/* ==================== 🤝 PHÂN HỆ QUẢN LÝ CÔNG NỢ & VAY MƯỢN ==================== */
+.btn-tool-debts {
+    background: #ccfbf1 !important;
+    color: #0d9488 !important;
+    border-color: #99f6e4 !important;
+    position: relative;
+}
+.btn-tool-debts:hover {
+    background: #99f6e4 !important;
+    color: #0f766e !important;
+}
+.debts-badge {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    background: #ef4444;
+    color: #ffffff;
+    font-size: 9.5px;
+    font-weight: 800;
+    padding: 1px 5px;
+    border-radius: 999px;
+    border: 1.5px solid #ffffff;
+}
+
+.debt-tab-btn {
+    border: none;
+    background: transparent;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.debt-tab-btn.active {
+    background: #ffffff;
+    color: #0f172a;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.debt-item-card {
+    background: #ffffff;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 14px 16px;
+    transition: all 0.2s ease;
+}
+.debt-item-card:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.debt-contact-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 15px;
+    flex-shrink: 0;
+}
+.debt-avatar-borrow {
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1.5px solid #fecaca;
+}
+.debt-avatar-lend {
+    background: #ecfdf5;
+    color: #059669;
+    border: 1.5px solid #a7f3d0;
+}
+
+.debt-badge-borrow {
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+    padding: 2px 7px;
+    border-radius: 6px;
+    font-size: 10.5px;
+    font-weight: 800;
+}
+.debt-badge-lend {
+    background: #ecfdf5;
+    color: #059669;
+    border: 1px solid #a7f3d0;
+    padding: 2px 7px;
+    border-radius: 6px;
+    font-size: 10.5px;
+    font-weight: 800;
+}
+.debt-badge-settled {
+    background: #f1f5f9;
+    color: #64748b;
+    border: 1px solid #cbd5e1;
+    padding: 2px 7px;
+    border-radius: 6px;
+    font-size: 10.5px;
+    font-weight: 800;
+}
+
+.debt-progress-bg {
+    width: 100%;
+    height: 6px;
+    background: #f1f5f9;
+    border-radius: 999px;
+    overflow: hidden;
+    margin: 8px 0;
+}
+.debt-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+    border-radius: 999px;
+    transition: width 0.3s ease;
+}
+
+.btn-debt-action-mini {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s ease;
+}
+.btn-debt-repay {
+    background: #eff6ff;
+    color: #2563eb;
+    border-color: #bfdbfe;
+}
+.btn-debt-repay:hover {
+    background: #dbeafe;
+}
+.btn-debt-more {
+    background: #f8fafc;
+    color: #475569;
+    border-color: #cbd5e1;
+}
+.btn-debt-more:hover {
+    background: #f1f5f9;
+}
+.btn-debt-settle {
+    background: #ecfdf5;
+    color: #059669;
+    border-color: #a7f3d0;
+}
+.btn-debt-settle:hover {
+    background: #d1fae5;
+}
+.btn-debt-delete {
+    background: #fef2f2;
+    color: #dc2626;
+    border-color: #fecaca;
+}
+.btn-debt-delete:hover {
+    background: #fee2e2;
+}
+
+.batch-debt-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    margin-top: 2px;
+}
+.batch-debt-tag.borrow {
+    background: #fff7ed;
+    color: #c2410c;
+    border: 1px solid #ffedd5;
+}
+.batch-debt-tag.repay {
+    background: #f0fdf4;
+    color: #15803d;
+    border: 1px solid #dcfce7;
+}
+.batch-debt-tag.lend {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border: 1px solid #dbeafe;
+}
+
+/* ==================== NÚT SỔ CÔNG NỢ TRÊN BẢNG (TABLE TOOLBAR PILL) ==================== */
+.btn-table-debts-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: #f0fdfa;
+    color: #0d9488;
+    border: 1.5px solid #99f6e4;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+.btn-table-debts-pill:hover {
+    background: #ccfbf1;
+    border-color: #5eead4;
+    color: #0f766e;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(13, 148, 136, 0.15);
+}
+.debts-pill-badge {
+    font-size: 10px;
+    font-weight: 800;
+    color: #ffffff;
+    background: #dc2626;
+    padding: 1px 6px;
+    border-radius: 999px;
+    line-height: 1.2;
+}
+
+/* ==================== DẢI CÔNG NỢ TRÊN DESKTOP (ẨN MẶC ĐỊNH) ==================== */
+.mobile-debt-quick-strip {
+    display: none;
+}
+
+/* ==================== THANH ĐIỀU HƯỚNG DƯỚI ĐÁY ĐIỆN THOẠI (MOBILE BOTTOM NAVIGATION) ==================== */
+.mobile-bottom-nav {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1050;
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid #e2e8f0;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.05);
+    padding: 6px 12px calc(6px + env(safe-area-inset-bottom, 0px));
+    justify-content: space-around;
+    align-items: center;
+    box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+    .mobile-bottom-nav {
+        display: flex !important;
+    }
+}
+
+.mobile-nav-item {
+    background: none;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 4px 8px;
+    color: #64748b;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border-radius: 8px;
+    min-width: 54px;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-nav-item:active {
+    transform: scale(0.92);
+}
+
+.mobile-nav-item.active {
+    color: var(--primary);
+}
+
+.mobile-nav-icon-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+}
+
+.mobile-nav-label {
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.mobile-nav-badge {
+    position: absolute;
+    top: -4px;
+    right: -8px;
+    background: #dc2626;
+    color: #ffffff;
+    font-size: 9px;
+    font-weight: 800;
+    padding: 1px 4.5px;
+    border-radius: 999px;
+    border: 1.5px solid #ffffff;
+    line-height: 1;
+}
+
+/* Nút Thêm Nhanh Nhô Cao ở Giữa Thanh Đáy */
+.mobile-nav-add-btn {
+    position: relative;
+    top: -12px;
+    padding: 0;
+}
+
+.mobile-nav-add-circle {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    box-shadow: 0 6px 16px rgba(37, 99, 235, 0.45);
+    border: 3px solid #ffffff;
+    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.mobile-nav-add-btn:active .mobile-nav-add-circle {
+    transform: scale(0.92) rotate(45deg);
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+}
+
+.mobile-nav-add-btn .mobile-nav-label {
+    margin-top: 2px;
+    color: #2563eb;
+    font-weight: 800;
+}
+
+
 
 

@@ -684,6 +684,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             localStorage.setItem(cacheKey, JSON.stringify(cached));
         } catch (e) {}
 
+        // Luôn đồng bộ vào AppData nếu ở Chế độ Demo hoặc Chế độ Khách (Offline/Guest)
+        if (!State.onlineMode || AppData.isDemoMode()) {
+            try {
+                AppData.addTransaction(newTx);
+            } catch (e) {}
+        }
+
         // 3. Nếu đang offline hoặc chưa sẵn sàng Supabase -> Giữ nguyên pending để tự đồng bộ khi có mạng
         if (!navigator.onLine || !State.onlineMode || !SupabaseService.client || !SupabaseService.currentWorkspace) {
             return newTx;
@@ -726,6 +733,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         mergeAndRenderTransactions(cloudTxs);
+        if (typeof updateDebtsSummaryUI === 'function') updateDebtsSummaryUI();
 
         if (navigator.onLine) {
             setTimeout(syncPendingOfflineTransactions, 600);
@@ -3773,6 +3781,822 @@ Quy tắc:
             });
         }
     };
+
+    // ==================== 📋 BATCH NOTES IMPORT & DEMO ACCOUNT MODE ====================
+    const btnOpenBatchNotes = document.getElementById('btnOpenBatchNotes');
+    const btnBatchImportPill = document.getElementById('btnBatchImportPill');
+    const btnBannerOpenBatch = document.getElementById('btnBannerOpenBatch');
+    const batchNotesModal = document.getElementById('batchNotesModal');
+    const closeBatchNotesModalBtn = document.getElementById('closeBatchNotesModalBtn');
+    const btnCancelBatchModal = document.getElementById('btnCancelBatchModal');
+    const batchNotesInput = document.getElementById('batchNotesInput');
+    const btnPasteSampleNotes = document.getElementById('btnPasteSampleNotes');
+    const btnClearBatchNotes = document.getElementById('btnClearBatchNotes');
+    const btnParseBatchNotes = document.getElementById('btnParseBatchNotes');
+    const btnTestOnDemoAccount = document.getElementById('btnTestOnDemoAccount');
+    const batchPreviewContainer = document.getElementById('batchPreviewContainer');
+    const batchPreviewTbody = document.getElementById('batchPreviewTbody');
+    const batchSumCount = document.getElementById('batchSumCount');
+    const batchSumIncome = document.getElementById('batchSumIncome');
+    const batchSumExpense = document.getElementById('batchSumExpense');
+    const btnSaveBatchTransactions = document.getElementById('btnSaveBatchTransactions');
+    const batchSaveCountBtn = document.getElementById('batchSaveCountBtn');
+
+    const btnToggleDemoMode = document.getElementById('btnToggleDemoMode');
+    const demoModeBanner = document.getElementById('demoModeBanner');
+    const btnExitDemoMode = document.getElementById('btnExitDemoMode');
+    const demoModeMenuText = document.getElementById('demoModeMenuText');
+    const badgeDemoStatus = document.getElementById('badgeDemoStatus');
+
+    // Mẫu văn bản của Sếp
+    const BOSS_SAMPLE_NOTES = `mượn tiền đóng học phí 2160\n\nmượn chị 500k để mua khăn giấy ướt + khăn khô đa năng và dùng sinh hoạt\n\ntrả tiền cho bà nội điện + nước( cấn trừ còn 340k )\n\nmượn bà nội 1tr lo viện phí và chi tiêu trong nhà ( khám 305k-22k) + thuốc 236k`;
+
+    let currentBatchParsedList = [];
+
+    function openBatchNotesModal() {
+        if (!batchNotesModal) return;
+        batchNotesModal.classList.add('active');
+        if (batchNotesInput) {
+            batchNotesInput.focus();
+        }
+    }
+
+    function closeBatchNotesModal() {
+        if (!batchNotesModal) return;
+        batchNotesModal.classList.remove('active');
+    }
+
+    btnOpenBatchNotes?.addEventListener('click', openBatchNotesModal);
+    btnBatchImportPill?.addEventListener('click', openBatchNotesModal);
+    btnBannerOpenBatch?.addEventListener('click', openBatchNotesModal);
+    closeBatchNotesModalBtn?.addEventListener('click', closeBatchNotesModal);
+    btnCancelBatchModal?.addEventListener('click', closeBatchNotesModal);
+
+    // Dán mẫu của Sếp
+    btnPasteSampleNotes?.addEventListener('click', () => {
+        if (batchNotesInput) {
+            batchNotesInput.value = BOSS_SAMPLE_NOTES;
+            handleParseBatchText();
+            showToast('✅ Đã nạp 4 dòng ghi chú mẫu của Sếp!');
+        }
+    });
+
+    // Xóa trắng
+    btnClearBatchNotes?.addEventListener('click', () => {
+        if (batchNotesInput) batchNotesInput.value = '';
+        currentBatchParsedList = [];
+        if (batchPreviewContainer) batchPreviewContainer.style.display = 'none';
+        if (btnSaveBatchTransactions) btnSaveBatchTransactions.style.display = 'none';
+    });
+
+    // Bấm bóc tách
+    btnParseBatchNotes?.addEventListener('click', handleParseBatchText);
+
+    function handleParseBatchText() {
+        const text = batchNotesInput?.value?.trim() || '';
+        if (!text) {
+            showToast('Vui lòng dán hoặc nhập nội dung ghi chú!');
+            return;
+        }
+
+        const parsed = Utils.parseBatchNotes(text);
+        if (!parsed || parsed.length === 0) {
+            showToast('Không tìm thấy dòng giao dịch hoặc số tiền hợp lệ.');
+            return;
+        }
+
+        currentBatchParsedList = parsed;
+        renderBatchPreviewTable();
+    }
+
+    function renderBatchPreviewTable() {
+        if (!batchPreviewTbody || !batchPreviewContainer) return;
+        batchPreviewTbody.innerHTML = '';
+
+        let totalInc = 0;
+        let totalExp = 0;
+
+        currentBatchParsedList.forEach((it, index) => {
+            const row = document.createElement('tr');
+            row.style.borderBottom = '1px solid #f1f5f9';
+
+            const amount = Number(it.amount) || 0;
+            if (it.type === 'income') {
+                totalInc += amount;
+            } else {
+                totalExp += amount;
+            }
+
+            // Sub items html
+            let subItemsHtml = '';
+            if (it.sub_items && it.sub_items.length > 0) {
+                const subDetails = it.sub_items.map(s => `${s.name}: ${Utils.formatCurrency(s.amount)}`).join(' + ');
+                subItemsHtml = `<div class="batch-subitem-badge" title="${subDetails}"><i class="fa-solid fa-list-check"></i> ${it.sub_items.length} món con: ${subDetails}</div>`;
+            }
+
+            // Debt tag html (Nhận diện đối tác công nợ)
+            let debtTagHtml = '';
+            if (it.debt_info && it.debt_info.isDebt) {
+                const actText = it.debt_info.action === 'borrow' ? 'Đi vay (Tôi nợ)' : (it.debt_info.action === 'repay' ? 'Trả nợ / Cấn trừ' : (it.debt_info.action === 'lend' ? 'Cho vay' : 'Thu nợ'));
+                debtTagHtml = `<div class="batch-debt-tag ${it.debt_info.action}" title="Tự động đồng bộ vào Sổ Công Nợ"><i class="fa-solid fa-handshake"></i> ${it.debt_info.contact}: ${actText}</div>`;
+            }
+
+            // Categories options
+            const cats = it.type === 'income' ? AppData.INCOME_CATEGORIES : AppData.EXPENSE_CATEGORIES;
+            let optionsHtml = '';
+            cats.forEach(c => {
+                const sel = (c.id === it.categoryId) ? 'selected' : '';
+                optionsHtml += `<option value="${c.id}" ${sel}>${c.emoji || '🏷️'} ${c.name}</option>`;
+            });
+
+            row.innerHTML = `
+                <td style="padding: 8px 6px; text-align: center; color: #94a3b8; font-weight: 700;">${index + 1}</td>
+                <td style="padding: 8px 6px; text-align: center;">
+                    <button type="button" class="batch-type-pill ${it.type}" data-index="${index}" title="Chạm để đổi Thu/Chi">
+                        ${it.type === 'income' ? '+ Thu' : '- Chi'}
+                    </button>
+                </td>
+                <td style="padding: 8px 6px; text-align: right;">
+                    <input type="number" class="batch-amount-input" data-index="${index}" value="${amount}" style="width: 110px; text-align: right; padding: 4px 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-weight: 700; font-size: 12.5px; color: ${it.type === 'income' ? '#059669' : '#dc2626'};" />
+                </td>
+                <td style="padding: 8px 6px;">
+                    <select class="batch-cat-select" data-index="${index}" style="width: 100%; max-width: 155px; padding: 4px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 11.5px;">
+                        ${optionsHtml}
+                    </select>
+                </td>
+                <td style="padding: 8px 6px;">
+                    <input type="text" class="batch-note-input" data-index="${index}" value="${it.note || ''}" style="width: 100%; padding: 4px 6px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px;" />
+                    ${debtTagHtml}
+                    ${subItemsHtml}
+                </td>
+                <td style="padding: 8px 6px; text-align: center;">
+                    <button type="button" class="btn-delete-batch-row" data-index="${index}" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 4px 6px; border-radius: 4px;" title="Xóa dòng này">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </td>
+            `;
+
+            batchPreviewTbody.appendChild(row);
+        });
+
+        // Update Summary Cards
+        if (batchSumCount) batchSumCount.textContent = currentBatchParsedList.length;
+        if (batchSumIncome) batchSumIncome.textContent = Utils.formatCurrency(totalInc);
+        if (batchSumExpense) batchSumExpense.textContent = Utils.formatCurrency(totalExp);
+        if (batchSaveCountBtn) batchSaveCountBtn.textContent = currentBatchParsedList.length;
+
+        batchPreviewContainer.style.display = 'block';
+        if (btnSaveBatchTransactions) {
+            btnSaveBatchTransactions.style.display = currentBatchParsedList.length > 0 ? 'inline-flex' : 'none';
+        }
+
+        // Add interactive listeners to table elements
+        batchPreviewTbody.querySelectorAll('.batch-type-pill').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const idx = parseInt(e.currentTarget.getAttribute('data-index'), 10);
+                if (currentBatchParsedList[idx]) {
+                    currentBatchParsedList[idx].type = currentBatchParsedList[idx].type === 'income' ? 'expense' : 'income';
+                    // Re-predict category
+                    const pred = Utils.predictCategory(currentBatchParsedList[idx].note, currentBatchParsedList[idx].type);
+                    if (pred) {
+                        currentBatchParsedList[idx].categoryId = pred.categoryId;
+                        currentBatchParsedList[idx].categoryName = pred.categoryName;
+                        currentBatchParsedList[idx].emoji = pred.emoji;
+                    }
+                    renderBatchPreviewTable();
+                }
+            });
+        });
+
+        batchPreviewTbody.querySelectorAll('.batch-amount-input').forEach(inp => {
+            inp.addEventListener('change', (e) => {
+                const idx = parseInt(e.currentTarget.getAttribute('data-index'), 10);
+                const val = parseFloat(e.currentTarget.value) || 0;
+                if (currentBatchParsedList[idx]) {
+                    currentBatchParsedList[idx].amount = val;
+                    // Recalculate summary only
+                    let sInc = 0, sExp = 0;
+                    currentBatchParsedList.forEach(item => {
+                        if (item.type === 'income') sInc += (Number(item.amount) || 0);
+                        else sExp += (Number(item.amount) || 0);
+                    });
+                    if (batchSumIncome) batchSumIncome.textContent = Utils.formatCurrency(sInc);
+                    if (batchSumExpense) batchSumExpense.textContent = Utils.formatCurrency(sExp);
+                }
+            });
+        });
+
+        batchPreviewTbody.querySelectorAll('.batch-cat-select').forEach(sel => {
+            sel.addEventListener('change', (e) => {
+                const idx = parseInt(e.currentTarget.getAttribute('data-index'), 10);
+                if (currentBatchParsedList[idx]) {
+                    currentBatchParsedList[idx].categoryId = e.currentTarget.value;
+                    const catObj = AppData.getCategoryById(e.currentTarget.value);
+                    if (catObj) {
+                        currentBatchParsedList[idx].categoryName = catObj.name;
+                        currentBatchParsedList[idx].emoji = catObj.emoji;
+                    }
+                }
+            });
+        });
+
+        batchPreviewTbody.querySelectorAll('.batch-note-input').forEach(inp => {
+            inp.addEventListener('change', (e) => {
+                const idx = parseInt(e.currentTarget.getAttribute('data-index'), 10);
+                if (currentBatchParsedList[idx]) {
+                    currentBatchParsedList[idx].note = e.currentTarget.value;
+                }
+            });
+        });
+
+        batchPreviewTbody.querySelectorAll('.btn-delete-batch-row').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const idx = parseInt(e.currentTarget.getAttribute('data-index'), 10);
+                currentBatchParsedList.splice(idx, 1);
+                renderBatchPreviewTable();
+            });
+        });
+    }
+
+    // Nút Lưu Tất Cả Vào Sổ
+    btnSaveBatchTransactions?.addEventListener('click', async () => {
+        if (!currentBatchParsedList || currentBatchParsedList.length === 0) {
+            showToast('Không có giao dịch nào để lưu.');
+            return;
+        }
+
+        try {
+            AppData.addBatchTransactions(currentBatchParsedList);
+            showToast(`🎉 Đã lưu thành công ${currentBatchParsedList.length} giao dịch vào Sổ!`);
+            closeBatchNotesModal();
+            currentBatchParsedList = [];
+            await loadTransactionsData();
+        } catch (err) {
+            console.error('Lỗi lưu giao dịch hàng loạt:', err);
+            showToast('Đã xảy ra lỗi khi lưu giao dịch.');
+        }
+    });
+
+    // Nút Test Trên Tài Khoản Demo (1-Click Automated Boss Demo Test)
+    btnTestOnDemoAccount?.addEventListener('click', async () => {
+        // 1. Kích hoạt Chế độ Demo
+        AppData.setDemoMode(true);
+        updateDemoModeUI();
+
+        // 2. Điền mẫu và bóc tách
+        const sampleTxs = Utils.parseBatchNotes(BOSS_SAMPLE_NOTES);
+        
+        // 3. Nạp thẳng vào kho giao dịch Demo
+        AppData.addBatchTransactions(sampleTxs);
+
+        // 4. Đóng modal & cập nhật giao diện
+        closeBatchNotesModal();
+        await loadTransactionsData();
+
+        showToast('🌟 Đã chuyển sang Tài Khoản Demo & nạp 4 giao dịch từ ghi chú thành công!');
+    });
+
+    // Chuyển đổi bật/tắt Demo Mode
+    function updateDemoModeUI() {
+        const isDemo = AppData.isDemoMode();
+        if (demoModeBanner) {
+            demoModeBanner.style.display = isDemo ? 'flex' : 'none';
+        }
+        if (badgeDemoStatus) {
+            badgeDemoStatus.textContent = isDemo ? 'Đang bật ⭐' : 'Trải nghiệm';
+            badgeDemoStatus.style.background = isDemo ? '#dcfce7' : '#ede9fe';
+            badgeDemoStatus.style.color = isDemo ? '#15803d' : '#7c3aed';
+        }
+        if (demoModeMenuText) {
+            demoModeMenuText.textContent = isDemo ? 'Thoát Chế độ Demo' : 'Chế độ Tài Khoản Demo';
+        }
+        if (isDemo) {
+            if (userDisplayName) userDisplayName.textContent = 'Sếp Demo 🌟';
+            if (userDisplayNameMenu) userDisplayNameMenu.textContent = 'Sếp Demo 🌟';
+            if (userRoleBadge) userRoleBadge.textContent = 'Owner (Demo) 👑';
+            if (currentWsName) currentWsName.textContent = 'Sổ Demo Thu Chi';
+        } else {
+            if (!State.onlineMode) {
+                if (userDisplayName) userDisplayName.textContent = 'Đăng Nhập';
+                if (userDisplayNameMenu) userDisplayNameMenu.textContent = 'Chế độ khách';
+                if (userRoleBadge) userRoleBadge.textContent = 'Guest 👤';
+                if (currentWsName) currentWsName.textContent = 'Home';
+            }
+        }
+    }
+
+    btnToggleDemoMode?.addEventListener('click', async () => {
+        const isDemo = AppData.isDemoMode();
+        AppData.setDemoMode(!isDemo);
+        updateDemoModeUI();
+        settingsMenuPopup?.classList.remove('active');
+        await loadTransactionsData();
+        showToast(AppData.isDemoMode() ? '🌟 Đã bật Chế độ Tài Khoản Demo' : 'Đã thoát Chế độ Demo');
+    });
+
+    btnExitDemoMode?.addEventListener('click', async () => {
+        AppData.setDemoMode(false);
+        updateDemoModeUI();
+        await loadTransactionsData();
+        showToast('Đã trở về tài khoản bình thường');
+    });
+
+    // Kiểm tra khởi tạo trạng thái Demo khi load trang
+    if (AppData.isDemoMode()) {
+        updateDemoModeUI();
+    }
+
+    // ==================== 🤝 CONTROLLER QUẢN LÝ CÔNG NỢ & VAY MƯỢN ====================
+    const btnOpenDebtsModal = document.getElementById('btnOpenDebtsModal');
+    const btnMenuOpenDebts = document.getElementById('btnMenuOpenDebts');
+    const btnDebtQuickSummary = document.getElementById('btnDebtQuickSummary');
+    const btnTableOpenDebts = document.getElementById('btnTableOpenDebts');
+    const tableDebtsBadge = document.getElementById('tableDebtsBadge');
+    const mobileDebtQuickStrip = document.getElementById('mobileDebtQuickStrip');
+    const mobileDebtBalanceVal = document.getElementById('mobileDebtBalanceVal');
+    const mobileDebtCountBadge = document.getElementById('mobileDebtCountBadge');
+    const btnNavDebts = document.getElementById('btnNavDebts');
+    const bottomNavDebtsBadge = document.getElementById('bottomNavDebtsBadge');
+    const btnNavHome = document.getElementById('btnNavHome');
+    const btnNavQuickAdd = document.getElementById('btnNavQuickAdd');
+    const btnNavBatchNotes = document.getElementById('btnNavBatchNotes');
+    const btnNavReports = document.getElementById('btnNavReports');
+    const debtModal = document.getElementById('debtModal');
+    const closeDebtModalBtn = document.getElementById('closeDebtModalBtn');
+    const btnCloseDebtModal = document.getElementById('btnCloseDebtModal');
+
+    const headerDebtsBadge = document.getElementById('headerDebtsBadge');
+    const subDebtBalanceVal = document.getElementById('subDebtBalanceVal');
+    const menuDebtsCountBadge = document.getElementById('menuDebtsCountBadge');
+    const debtsModalActiveBadge = document.getElementById('debtsModalActiveBadge');
+
+    const debtKpiBorrow = document.getElementById('debtKpiBorrow');
+    const debtKpiBorrowCount = document.getElementById('debtKpiBorrowCount');
+    const debtKpiLend = document.getElementById('debtKpiLend');
+    const debtKpiLendCount = document.getElementById('debtKpiLendCount');
+    const debtKpiNet = document.getElementById('debtKpiNet');
+
+    const tabDebtAll = document.getElementById('tabDebtAll');
+    const tabDebtBorrow = document.getElementById('tabDebtBorrow');
+    const tabDebtLend = document.getElementById('tabDebtLend');
+    const tabDebtSettled = document.getElementById('tabDebtSettled');
+    const tabCountAll = document.getElementById('tabCountAll');
+    const tabCountBorrow = document.getElementById('tabCountBorrow');
+    const tabCountLend = document.getElementById('tabCountLend');
+    const tabCountSettled = document.getElementById('tabCountSettled');
+
+    const btnToggleAddDebtForm = document.getElementById('btnToggleAddDebtForm');
+    const addDebtFormWrap = document.getElementById('addDebtFormWrap');
+    const newDebtForm = document.getElementById('newDebtForm');
+    const btnCancelAddDebt = document.getElementById('btnCancelAddDebt');
+
+    const debtsCardsList = document.getElementById('debtsCardsList');
+    const emptyDebtsState = document.getElementById('emptyDebtsState');
+
+    let currentDebtFilterTab = 'all';
+
+    function openDebtsModal() {
+        if (!debtModal) return;
+        debtModal.classList.add('active');
+        renderDebtsList(currentDebtFilterTab);
+    }
+
+    function closeDebtsModal() {
+        if (!debtModal) return;
+        debtModal.classList.remove('active');
+        if (addDebtFormWrap) addDebtFormWrap.style.display = 'none';
+        btnNavDebts?.classList.remove('active');
+        btnNavHome?.classList.add('active');
+        updateDebtsSummaryUI();
+    }
+
+    btnOpenDebtsModal?.addEventListener('click', openDebtsModal);
+    btnTableOpenDebts?.addEventListener('click', openDebtsModal);
+    mobileDebtQuickStrip?.addEventListener('click', openDebtsModal);
+
+    btnNavDebts?.addEventListener('click', () => {
+        document.querySelectorAll('.mobile-nav-item').forEach(b => b.classList.remove('active'));
+        btnNavDebts?.classList.add('active');
+        openDebtsModal();
+    });
+
+    btnNavHome?.addEventListener('click', () => {
+        document.querySelectorAll('.mobile-nav-item').forEach(b => b.classList.remove('active'));
+        btnNavHome?.classList.add('active');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    btnNavQuickAdd?.addEventListener('click', () => {
+        openModalForNew('income');
+    });
+
+    btnNavBatchNotes?.addEventListener('click', () => {
+        document.querySelectorAll('.mobile-nav-item').forEach(b => b.classList.remove('active'));
+        btnNavBatchNotes?.classList.add('active');
+        openBatchNotesModal();
+    });
+
+    btnNavReports?.addEventListener('click', () => {
+        document.querySelectorAll('.mobile-nav-item').forEach(b => b.classList.remove('active'));
+        btnNavReports?.classList.add('active');
+        document.getElementById('btnOpenReports')?.click();
+    });
+
+    btnMenuOpenDebts?.addEventListener('click', () => {
+        settingsMenuPopup?.classList.remove('active');
+        openDebtsModal();
+    });
+    btnDebtQuickSummary?.addEventListener('click', openDebtsModal);
+    closeDebtModalBtn?.addEventListener('click', closeDebtsModal);
+    btnCloseDebtModal?.addEventListener('click', closeDebtsModal);
+
+    // Toggle Form thêm nợ
+    btnToggleAddDebtForm?.addEventListener('click', () => {
+        if (!addDebtFormWrap) return;
+        const isHidden = addDebtFormWrap.style.display === 'none' || !addDebtFormWrap.style.display;
+        addDebtFormWrap.style.display = isHidden ? 'block' : 'none';
+        if (isHidden) {
+            document.getElementById('newDebtContact')?.focus();
+        }
+    });
+
+    btnCancelAddDebt?.addEventListener('click', () => {
+        if (addDebtFormWrap) addDebtFormWrap.style.display = 'none';
+    });
+
+    // Submit form thêm nợ thủ công
+    newDebtForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const type = document.getElementById('newDebtType')?.value || 'borrow';
+        const contact = document.getElementById('newDebtContact')?.value?.trim();
+        const amount = parseFloat(document.getElementById('newDebtAmount')?.value) || 0;
+        const dueDate = document.getElementById('newDebtDueDate')?.value || '';
+        const note = document.getElementById('newDebtNote')?.value?.trim() || '';
+
+        if (!contact || amount <= 0) {
+            showToast('Vui lòng nhập tên đối tác và số tiền hợp lệ!');
+            return;
+        }
+
+        AppData.addDebt({
+            contact,
+            type,
+            amount,
+            dueDate,
+            note
+        });
+
+        // Tự động đồng bộ tạo giao dịch vào Sổ Thu Chi:
+        // Đi vay (borrow) -> Nhận tiền vào ví (income)
+        // Cho vay (lend) -> Chi tiền ra (expense)
+        const txType = type === 'borrow' ? 'income' : 'expense';
+        const txCat = type === 'borrow' ? 'cat_income_other' : 'cat_bills';
+        try {
+            await saveTransactionUniversal({
+                type: txType,
+                amount: amount,
+                categoryId: txCat,
+                note: `[Công nợ] ${type === 'borrow' ? 'Vay từ' : 'Cho vay'} ${contact}${note ? ': ' + note : ''}`,
+                date: new Date().toISOString()
+            });
+        } catch (err) {}
+
+        newDebtForm.reset();
+        if (addDebtFormWrap) addDebtFormWrap.style.display = 'none';
+        renderDebtsList(currentDebtFilterTab);
+        updateDebtsSummaryUI();
+        await loadTransactionsData();
+        showToast(`✅ Đã thêm khoản nợ cho ${contact} & cập nhật Sổ Thu Chi!`);
+    });
+
+    // Tabs filter
+    const debtTabButtons = [tabDebtAll, tabDebtBorrow, tabDebtLend, tabDebtSettled];
+    debtTabButtons.forEach(btn => {
+        btn?.addEventListener('click', (e) => {
+            debtTabButtons.forEach(b => b?.classList.remove('active'));
+            e.currentTarget.classList.add('active');
+            currentDebtFilterTab = e.currentTarget.getAttribute('data-tab') || 'all';
+            renderDebtsList(currentDebtFilterTab);
+        });
+    });
+
+    function updateDebtsSummaryUI() {
+        const summary = AppData.getDebtsSummary();
+        const debts = AppData.getDebts();
+
+        // Update header & banner badges
+        if (subDebtBalanceVal) subDebtBalanceVal.textContent = Utils.formatCurrency(summary.totalBorrow);
+        if (mobileDebtBalanceVal) mobileDebtBalanceVal.textContent = Utils.formatCurrency(summary.totalBorrow);
+        if (mobileDebtCountBadge) mobileDebtCountBadge.textContent = `${summary.totalActiveCount} khoản`;
+        if (menuDebtsCountBadge) menuDebtsCountBadge.textContent = `${summary.totalActiveCount} khoản`;
+        if (headerDebtsBadge) {
+            headerDebtsBadge.textContent = summary.totalActiveCount;
+            headerDebtsBadge.style.display = summary.totalActiveCount > 0 ? 'inline-block' : 'none';
+        }
+        if (tableDebtsBadge) {
+            tableDebtsBadge.textContent = summary.totalActiveCount;
+            tableDebtsBadge.style.display = summary.totalActiveCount > 0 ? 'inline-block' : 'none';
+        }
+        if (bottomNavDebtsBadge) {
+            bottomNavDebtsBadge.textContent = summary.totalActiveCount;
+            bottomNavDebtsBadge.style.display = summary.totalActiveCount > 0 ? 'inline-block' : 'none';
+        }
+        if (debtsModalActiveBadge) debtsModalActiveBadge.textContent = `${summary.totalActiveCount} khoản đang nợ`;
+
+        // Update Modal KPIs
+        if (debtKpiBorrow) debtKpiBorrow.textContent = Utils.formatCurrency(summary.totalBorrow);
+        if (debtKpiBorrowCount) debtKpiBorrowCount.textContent = `${summary.activeBorrowCount} khoản nợ phải trả`;
+        if (debtKpiLend) debtKpiLend.textContent = Utils.formatCurrency(summary.totalLend);
+        if (debtKpiLendCount) debtKpiLendCount.textContent = `${summary.activeLendCount} khoản nợ phải thu`;
+        if (debtKpiNet) {
+            debtKpiNet.textContent = Utils.formatCurrency(summary.netDebt);
+            debtKpiNet.style.color = summary.netDebt >= 0 ? '#059669' : '#dc2626';
+        }
+
+        // Tab counts
+        let countBorrow = 0, countLend = 0, countSettled = 0;
+        debts.forEach(d => {
+            if (d.status === 'settled') countSettled++;
+            else if (d.type === 'borrow') countBorrow++;
+            else if (d.type === 'lend') countLend++;
+        });
+
+        if (tabCountAll) tabCountAll.textContent = debts.length;
+        if (tabCountBorrow) tabCountBorrow.textContent = countBorrow;
+        if (tabCountLend) tabCountLend.textContent = countLend;
+        if (tabCountSettled) tabCountSettled.textContent = countSettled;
+    }
+
+    function renderDebtsList(tab = 'all') {
+        updateDebtsSummaryUI();
+        if (!debtsCardsList || !emptyDebtsState) return;
+
+        let debts = AppData.getDebts();
+
+        // Filter by tab
+        if (tab === 'borrow') {
+            debts = debts.filter(d => d.type === 'borrow' && d.status === 'active');
+        } else if (tab === 'lend') {
+            debts = debts.filter(d => d.type === 'lend' && d.status === 'active');
+        } else if (tab === 'settled') {
+            debts = debts.filter(d => d.status === 'settled');
+        }
+
+        if (debts.length === 0) {
+            debtsCardsList.style.display = 'none';
+            emptyDebtsState.style.display = 'block';
+            return;
+        }
+
+        debtsCardsList.style.display = 'flex';
+        emptyDebtsState.style.display = 'none';
+        debtsCardsList.innerHTML = '';
+
+        debts.forEach(debt => {
+            const card = document.createElement('div');
+            card.className = 'debt-item-card';
+
+            const isBorrow = debt.type === 'borrow';
+            const isSettled = debt.status === 'settled';
+            const firstLetter = (debt.contact || 'N').charAt(0).toUpperCase();
+
+            const orig = Number(debt.originalAmount) || 0;
+            const paid = Number(debt.paidAmount) || 0;
+            const remain = Number(debt.remainingAmount) || 0;
+            const percentPaid = orig > 0 ? Math.min(100, Math.round((paid / orig) * 100)) : 100;
+
+            // Badges
+            let typeBadgeHtml = '';
+            if (isSettled) {
+                typeBadgeHtml = `<span class="debt-badge-settled"><i class="fa-solid fa-check"></i> Đã hoàn tất</span>`;
+            } else if (isBorrow) {
+                typeBadgeHtml = `<span class="debt-badge-borrow"><i class="fa-solid fa-arrow-down-long"></i> Tôi nợ (Đi vay)</span>`;
+            } else {
+                typeBadgeHtml = `<span class="debt-badge-lend"><i class="fa-solid fa-arrow-up-long"></i> Nợ tôi (Cho vay)</span>`;
+            }
+
+            // History items
+            let historyHtml = '';
+            if (Array.isArray(debt.history) && debt.history.length > 0) {
+                historyHtml = debt.history.map(h => {
+                    const hActText = h.action === 'borrow' ? 'Mượn' : (h.action === 'repay' ? 'Trả / Cấn trừ' : (h.action === 'lend' ? 'Cho vay' : (h.action === 'collect' ? 'Thu hồi' : 'Tất toán')));
+                    const hSign = (h.action === 'borrow' || h.action === 'lend') ? '+' : '-';
+                    const hColor = (h.action === 'borrow' || h.action === 'lend') ? '#dc2626' : '#059669';
+                    const dStr = h.date ? new Date(h.date).toLocaleDateString('vi-VN') : '';
+                    return `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px dashed #f1f5f9; font-size: 11.5px;">
+                            <span style="color: #64748b;">${dStr} • ${h.note || hActText}</span>
+                            <span style="font-weight: 700; color: ${hColor};">${hSign}${Utils.formatCurrency(h.amount)}</span>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            card.innerHTML = `
+                <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 8px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div class="debt-contact-avatar ${isBorrow ? 'debt-avatar-borrow' : 'debt-avatar-lend'}">
+                            ${firstLetter}
+                        </div>
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-weight: 800; font-size: 14.5px; color: #0f172a;">${debt.contact}</span>
+                                ${typeBadgeHtml}
+                            </div>
+                            <div style="font-size: 11.5px; color: #64748b; margin-top: 2px;">
+                                ${debt.note || 'Không có ghi chú'}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="text-align: right;">
+                        <div style="font-size: 11px; color: #64748b; font-weight: 600;">CÒN NỢ LẠI:</div>
+                        <div style="font-size: 17px; font-weight: 800; color: ${isSettled ? '#64748b' : (isBorrow ? '#dc2626' : '#059669')};">
+                            ${isSettled ? '0 ₫' : Utils.formatCurrency(remain)}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="debt-progress-bg">
+                    <div class="debt-progress-fill" style="width: ${percentPaid}%;"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 11px; color: #64748b; font-weight: 600; margin-bottom: 8px;">
+                    <span>Gốc: <b>${Utils.formatCurrency(orig)}</b></span>
+                    <span>Đã trả/cấn trừ: <b style="color: #059669;">${Utils.formatCurrency(paid)}</b> (${percentPaid}%)</span>
+                </div>
+
+                <!-- History toggle & Actions -->
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; padding-top: 6px; border-top: 1px solid #f8fafc;">
+                    <button type="button" class="btn-toggle-debt-history" style="background: none; border: none; font-size: 11.5px; color: #2563eb; font-weight: 700; cursor: pointer; padding: 4px 0;">
+                        <i class="fa-solid fa-clock-rotate-left"></i> Lịch sử (${debt.history?.length || 0}) <i class="fa-solid fa-chevron-down caret-h" style="font-size: 9px;"></i>
+                    </button>
+
+                    <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                        ${!isSettled ? `
+                            <button type="button" class="btn-debt-action-mini btn-debt-repay" data-id="${debt.id}" title="Ghi nhận trả nợ hoặc cấn trừ tiền">
+                                <i class="fa-solid fa-money-bill-wave"></i> ${isBorrow ? 'Trả nợ / Cấn trừ' : 'Thu hồi nợ'}
+                            </button>
+                            <button type="button" class="btn-debt-action-mini btn-debt-more" data-id="${debt.id}" title="Ghi nhận mượn thêm hoặc cho vay thêm">
+                                <i class="fa-solid fa-plus"></i> ${isBorrow ? 'Mượn thêm' : 'Cho vay thêm'}
+                            </button>
+                            <button type="button" class="btn-debt-action-mini btn-debt-settle" data-id="${debt.id}" title="Chốt hoàn tất xong nợ">
+                                <i class="fa-solid fa-check"></i> Tất toán
+                            </button>
+                        ` : ''}
+                        <button type="button" class="btn-debt-action-mini btn-debt-delete" data-id="${debt.id}" title="Xóa khoản nợ này">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Accordion History details -->
+                <div class="debt-history-box" style="display: none; background: #f8fafc; border-radius: 8px; padding: 8px 12px; margin-top: 8px;">
+                    ${historyHtml}
+                </div>
+            `;
+
+            // Toggle history
+            const btnToggleHist = card.querySelector('.btn-toggle-debt-history');
+            const histBox = card.querySelector('.debt-history-box');
+            const caretH = card.querySelector('.caret-h');
+            btnToggleHist?.addEventListener('click', () => {
+                const isShow = histBox.style.display === 'block';
+                histBox.style.display = isShow ? 'none' : 'block';
+                if (caretH) caretH.style.transform = isShow ? 'rotate(0deg)' : 'rotate(180deg)';
+            });
+
+            // Action: Trả nợ / Cấn trừ
+            card.querySelector('.btn-debt-repay')?.addEventListener('click', async (e) => {
+                const id = e.currentTarget.getAttribute('data-id');
+                const target = debts.find(d => d.id === id);
+                if (!target) return;
+
+                const isBorrow = target.type === 'borrow';
+                const actionLabel = isBorrow ? 'trả nợ / cấn trừ cho' : 'thu hồi nợ từ';
+                const inputStr = prompt(`Nhập số tiền ${actionLabel} ${target.contact} (Còn lại: ${Utils.formatCurrency(target.remainingAmount)}):`, target.remainingAmount);
+                if (inputStr === null) return;
+                const amt = Utils.parseInputAmount(inputStr);
+                if (amt <= 0) {
+                    showToast('Số tiền không hợp lệ!');
+                    return;
+                }
+
+                const defaultNote = isBorrow ? `Trả nợ cho ${target.contact}` : `Thu nợ từ ${target.contact}`;
+                const noteStr = prompt('Nhập nội dung / lý do (ví dụ: Điện nước cấn trừ, Chuyển khoản...):', defaultNote) || defaultNote;
+                AppData.recordDebtRepayment(id, amt, noteStr);
+
+                // Đồng bộ Sổ Thu Chi: Tôi trả nợ -> Chi tiền (expense); Tôi thu nợ -> Thu tiền (income)
+                const txType = isBorrow ? 'expense' : 'income';
+                const txCat = isBorrow ? 'cat_bills' : 'cat_income_other';
+                try {
+                    await saveTransactionUniversal({
+                        type: txType,
+                        amount: amt,
+                        categoryId: txCat,
+                        note: `[Công nợ] ${noteStr}`,
+                        date: new Date().toISOString()
+                    });
+                } catch (err) {}
+
+                renderDebtsList(currentDebtFilterTab);
+                updateDebtsSummaryUI();
+                await loadTransactionsData();
+                showToast(`✅ Đã ghi nhận ${Utils.formatCurrency(amt)} cho ${target.contact} & đồng bộ Sổ Thu Chi!`);
+            });
+
+            // Action: Mượn thêm
+            card.querySelector('.btn-debt-more')?.addEventListener('click', async (e) => {
+                const id = e.currentTarget.getAttribute('data-id');
+                const target = debts.find(d => d.id === id);
+                if (!target) return;
+
+                const isBorrow = target.type === 'borrow';
+                const actionLabel = isBorrow ? 'mượn thêm từ' : 'cho vay thêm đối với';
+                const inputStr = prompt(`Nhập số tiền ${actionLabel} ${target.contact}:`, '500000');
+                if (inputStr === null) return;
+                const amt = Utils.parseInputAmount(inputStr);
+                if (amt <= 0) {
+                    showToast('Số tiền không hợp lệ!');
+                    return;
+                }
+
+                const defaultNote = isBorrow ? `Mượn thêm từ ${target.contact}` : `Cho ${target.contact} vay thêm`;
+                const noteStr = prompt('Nhập ghi chú mượn thêm:', defaultNote) || defaultNote;
+                AppData.recordDebtBorrowMore(id, amt, noteStr);
+
+                // Đồng bộ Sổ Thu Chi: Mượn thêm -> Thu tiền (income); Cho vay thêm -> Chi tiền (expense)
+                const txType = isBorrow ? 'income' : 'expense';
+                const txCat = isBorrow ? 'cat_income_other' : 'cat_bills';
+                try {
+                    await saveTransactionUniversal({
+                        type: txType,
+                        amount: amt,
+                        categoryId: txCat,
+                        note: `[Công nợ] ${noteStr}`,
+                        date: new Date().toISOString()
+                    });
+                } catch (err) {}
+
+                renderDebtsList(currentDebtFilterTab);
+                updateDebtsSummaryUI();
+                await loadTransactionsData();
+                showToast(`✅ Đã ghi nhận thêm ${Utils.formatCurrency(amt)} & đồng bộ Sổ Thu Chi!`);
+            });
+
+            // Action: Tất toán
+            card.querySelector('.btn-debt-settle')?.addEventListener('click', async (e) => {
+                const id = e.currentTarget.getAttribute('data-id');
+                const target = debts.find(d => d.id === id);
+                if (!target) return;
+
+                const remain = target.remainingAmount;
+                if (confirm(`Xác nhận chốt tất toán xong khoản nợ của ${target.contact}?`)) {
+                    AppData.settleDebt(id);
+
+                    if (remain > 0) {
+                        const isBorrow = target.type === 'borrow';
+                        const txType = isBorrow ? 'expense' : 'income';
+                        const txCat = isBorrow ? 'cat_bills' : 'cat_income_other';
+                        try {
+                            await saveTransactionUniversal({
+                                type: txType,
+                                amount: remain,
+                                categoryId: txCat,
+                                note: `[Tất toán công nợ] Hoàn tất nợ với ${target.contact}`,
+                                date: new Date().toISOString()
+                            });
+                        } catch (err) {}
+                    }
+
+                    renderDebtsList(currentDebtFilterTab);
+                    updateDebtsSummaryUI();
+                    await loadTransactionsData();
+                    showToast(`🎉 Đã tất toán xong khoản nợ của ${target.contact}!`);
+                }
+            });
+
+            // Action: Xóa
+            card.querySelector('.btn-debt-delete')?.addEventListener('click', async (e) => {
+                const id = e.currentTarget.getAttribute('data-id');
+                const target = debts.find(d => d.id === id);
+                if (!target) return;
+
+                if (confirm(`Bạn có chắc chắn muốn xóa khoản nợ của ${target.contact}?`)) {
+                    AppData.deleteDebt(id);
+                    renderDebtsList(currentDebtFilterTab);
+                    updateDebtsSummaryUI();
+                    await loadTransactionsData();
+                    showToast('Đã xóa khoản nợ.');
+                }
+            });
+
+            debtsCardsList.appendChild(card);
+        });
+    }
+
+    // Khởi tạo hiển thị badges công nợ ngay khi nạp trang
+    updateDebtsSummaryUI();
 
     function showToast(msg) {
         const toast = document.getElementById('toastPopup');

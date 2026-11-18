@@ -86,6 +86,30 @@ const AppData = {
         this.saveCustomCategories(custom);
     },
 
+    // ==================== QUẢN LÝ CHẾ ĐỘ TÀI KHOẢN DEMO ====================
+    isDemoMode() {
+        return localStorage.getItem('smartfinance_is_demo_mode') === 'true';
+    },
+
+    setDemoMode(enabled) {
+        localStorage.setItem('smartfinance_is_demo_mode', enabled ? 'true' : 'false');
+    },
+
+    DEMO_USER: {
+        id: 'user_demo_boss',
+        email: 'demo@sothuchi.vn',
+        name: 'Sếp Demo 🌟',
+        role: 'owner'
+    },
+
+    DEMO_WORKSPACE: {
+        id: 'ws_demo_sothuchi',
+        name: 'Sổ Demo Thu Chi 📁',
+        icon: '📁',
+        role: 'owner',
+        is_default: true
+    },
+
     // Bắt đầu bằng mảng trống (không dùng dữ liệu mẫu)
     INITIAL_TRANSACTIONS: [],
 
@@ -97,24 +121,383 @@ const AppData = {
     },
 
     getTransactions() {
+        if (this.isDemoMode()) {
+            const demoData = localStorage.getItem('smartfinance_demo_transactions');
+            return demoData ? JSON.parse(demoData) : [];
+        }
         const data = sessionStorage.getItem('temp_guest_transactions');
         return data ? JSON.parse(data) : [];
     },
 
     saveTransactions(txs) {
+        if (this.isDemoMode()) {
+            localStorage.setItem('smartfinance_demo_transactions', JSON.stringify(txs));
+            return;
+        }
         sessionStorage.setItem('temp_guest_transactions', JSON.stringify(txs));
     },
 
     addTransaction(tx) {
         const txs = this.getTransactions();
         const newTx = {
-            id: 'tx_' + Date.now(),
+            id: 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
             ...tx,
             sub_items: Array.isArray(tx.sub_items) ? tx.sub_items : (Array.isArray(tx.subItems) ? tx.subItems : [])
         };
         txs.unshift(newTx);
         this.saveTransactions(txs);
         return newTx;
+    },
+
+    addBatchTransactions(batchList) {
+        if (!Array.isArray(batchList) || batchList.length === 0) return [];
+        const txs = this.getTransactions();
+        const added = [];
+
+        batchList.forEach((it, idx) => {
+            const newTx = {
+                id: 'tx_' + (Date.now() + idx) + '_' + Math.random().toString(36).substr(2, 4),
+                type: it.type || 'expense',
+                amount: Number(it.amount) || 0,
+                categoryId: it.categoryId || 'cat_unclassified_expense',
+                note: it.note || '',
+                date: it.date || new Date().toISOString(),
+                sub_items: Array.isArray(it.sub_items) ? it.sub_items : []
+            };
+            txs.unshift(newTx);
+            added.push(newTx);
+        });
+
+        // Sắp xếp theo ngày giảm dần
+        txs.sort((a, b) => new Date(b.date) - new Date(a.date));
+        this.saveTransactions(txs);
+
+        // Tự động đồng bộ sang Sổ Công Nợ nếu giao dịch có phát hiện nợ nần
+        try {
+            this.syncBatchDebts(batchList);
+        } catch (e) {
+            console.warn('Lỗi syncBatchDebts:', e);
+        }
+
+        return added;
+    },
+
+    // ==================== 🤝 PHÂN HỆ QUẢN LÝ CÔNG NỢ & VAY MƯỢN ====================
+    getDebts() {
+        try {
+            if (this.isDemoMode()) {
+                const raw = localStorage.getItem('smartfinance_demo_debts');
+                return raw ? JSON.parse(raw) : [];
+            }
+            const raw = localStorage.getItem('smartfinance_debts');
+            return raw ? JSON.parse(raw) : [];
+        } catch (e) {
+            return [];
+        }
+    },
+
+    saveDebts(debts) {
+        const data = Array.isArray(debts) ? debts : [];
+        if (this.isDemoMode()) {
+            localStorage.setItem('smartfinance_demo_debts', JSON.stringify(data));
+            return;
+        }
+        localStorage.setItem('smartfinance_debts', JSON.stringify(data));
+    },
+
+    getDebtsSummary() {
+        const debts = this.getDebts();
+        let totalBorrow = 0; // Tôi nợ (Phải trả)
+        let totalLend = 0;   // Nợ tôi (Phải thu)
+        let activeBorrowCount = 0;
+        let activeLendCount = 0;
+
+        debts.forEach(d => {
+            if (d.status === 'active') {
+                const rem = Number(d.remainingAmount) || 0;
+                if (d.type === 'borrow') {
+                    totalBorrow += rem;
+                    activeBorrowCount++;
+                } else if (d.type === 'lend') {
+                    totalLend += rem;
+                    activeLendCount++;
+                }
+            }
+        });
+
+        return {
+            totalBorrow,
+            totalLend,
+            netDebt: totalLend - totalBorrow,
+            activeBorrowCount,
+            activeLendCount,
+            totalActiveCount: activeBorrowCount + activeLendCount
+        };
+    },
+
+    addDebt(debt) {
+        const debts = this.getDebts();
+        const contactName = (debt.contact || 'Chưa đặt tên').trim();
+        const amt = Number(debt.amount || debt.originalAmount) || 0;
+        const type = debt.type || 'borrow'; // 'borrow' (Tôi nợ) | 'lend' (Nợ tôi)
+
+        const newDebt = {
+            id: 'debt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+            contact: contactName,
+            type: type,
+            originalAmount: amt,
+            paidAmount: 0,
+            remainingAmount: amt,
+            note: debt.note || '',
+            date: debt.date || new Date().toISOString(),
+            dueDate: debt.dueDate || '',
+            status: 'active',
+            history: [{
+                id: 'dh_' + Date.now(),
+                date: debt.date || new Date().toISOString(),
+                action: type,
+                amount: amt,
+                note: debt.note || 'Tạo khoản nợ mới'
+            }]
+        };
+
+        debts.unshift(newDebt);
+        this.saveDebts(debts);
+        return newDebt;
+    },
+
+    recordDebtRepayment(debtId, amount, note = '', date = null) {
+        let debts = this.getDebts();
+        const target = debts.find(d => d.id === debtId);
+        if (!target) return null;
+
+        const amt = Number(amount) || 0;
+        target.paidAmount = (Number(target.paidAmount) || 0) + amt;
+        target.remainingAmount = Math.max(0, target.originalAmount - target.paidAmount);
+        if (target.remainingAmount === 0) {
+            target.status = 'settled';
+        }
+
+        if (!Array.isArray(target.history)) target.history = [];
+        target.history.push({
+            id: 'dh_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+            date: date || new Date().toISOString(),
+            action: target.type === 'borrow' ? 'repay' : 'collect',
+            amount: amt,
+            note: note || (target.type === 'borrow' ? 'Trả bớt nợ / Cấn trừ' : 'Thu hồi bớt nợ')
+        });
+
+        this.saveDebts(debts);
+        return target;
+    },
+
+    recordDebtBorrowMore(debtId, amount, note = '', date = null) {
+        let debts = this.getDebts();
+        const target = debts.find(d => d.id === debtId);
+        if (!target) return null;
+
+        const amt = Number(amount) || 0;
+        target.originalAmount = (Number(target.originalAmount) || 0) + amt;
+        target.remainingAmount = (Number(target.remainingAmount) || 0) + amt;
+        target.status = 'active';
+
+        if (!Array.isArray(target.history)) target.history = [];
+        target.history.push({
+            id: 'dh_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+            date: date || new Date().toISOString(),
+            action: target.type,
+            amount: amt,
+            note: note || 'Mượn thêm / Cho vay thêm'
+        });
+
+        this.saveDebts(debts);
+        return target;
+    },
+
+    settleDebt(debtId) {
+        let debts = this.getDebts();
+        const target = debts.find(d => d.id === debtId);
+        if (!target) return null;
+
+        const remain = target.remainingAmount;
+        target.paidAmount = target.originalAmount;
+        target.remainingAmount = 0;
+        target.status = 'settled';
+
+        if (!Array.isArray(target.history)) target.history = [];
+        target.history.push({
+            id: 'dh_' + Date.now(),
+            date: new Date().toISOString(),
+            action: 'settle',
+            amount: remain,
+            note: 'Chốt tất toán toàn bộ công nợ'
+        });
+
+        this.saveDebts(debts);
+        return target;
+    },
+
+    deleteDebt(debtId) {
+        let debts = this.getDebts();
+        debts = debts.filter(d => d.id !== debtId);
+        this.saveDebts(debts);
+        return true;
+    },
+
+    syncBatchDebts(batchList) {
+        if (!Array.isArray(batchList)) return;
+        const debts = this.getDebts();
+
+        // Ưu tiên xử lý các khoản vay/mượn trước ('borrow', 'lend') để thiết lập số nợ ban đầu,
+        // sau đó mới xử lý các khoản trả nợ/cấn trừ/thu hồi ('repay', 'collect')
+        const sorted = [...batchList].sort((a, b) => {
+            const actA = a.debt_info?.action || '';
+            const actB = b.debt_info?.action || '';
+            const priority = { borrow: 1, lend: 1, repay: 2, collect: 2 };
+            return (priority[actA] || 3) - (priority[actB] || 3);
+        });
+
+        sorted.forEach(it => {
+            const di = it.debt_info;
+            if (!di || !di.isDebt || !di.contact) return;
+
+            const contact = di.contact.trim();
+            const action = di.action; // 'borrow' (Tôi nợ) | 'repay' (Tôi trả nợ) | 'lend' (Họ nợ tôi) | 'collect' (Thu nợ)
+            const amt = Number(it.amount) || 0;
+            const dateStr = it.date || new Date().toISOString();
+            const noteStr = it.note || '';
+
+            if (action === 'borrow') {
+                // Tôi nợ thêm (Đi vay)
+                let existing = debts.find(d => d.contact.toLowerCase() === contact.toLowerCase() && d.type === 'borrow' && d.status === 'active');
+                if (existing) {
+                    existing.originalAmount += amt;
+                    existing.remainingAmount += amt;
+                    if (!Array.isArray(existing.history)) existing.history = [];
+                    existing.history.push({
+                        id: 'dh_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                        date: dateStr,
+                        action: 'borrow',
+                        amount: amt,
+                        note: noteStr
+                    });
+                } else {
+                    debts.push({
+                        id: 'debt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                        contact: contact,
+                        type: 'borrow',
+                        originalAmount: amt,
+                        paidAmount: 0,
+                        remainingAmount: amt,
+                        note: noteStr,
+                        date: dateStr,
+                        dueDate: '',
+                        status: 'active',
+                        history: [{
+                            id: 'dh_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                            date: dateStr,
+                            action: 'borrow',
+                            amount: amt,
+                            note: noteStr
+                        }]
+                    });
+                }
+            } else if (action === 'repay') {
+                // Tôi trả nợ / Cấn trừ vào khoản nợ
+                let existing = debts.find(d => d.contact.toLowerCase() === contact.toLowerCase() && d.type === 'borrow' && d.status === 'active');
+                if (existing) {
+                    existing.paidAmount += amt;
+                    existing.remainingAmount = Math.max(0, existing.originalAmount - existing.paidAmount);
+                    if (existing.remainingAmount === 0) {
+                        existing.status = 'settled';
+                    }
+                    if (!Array.isArray(existing.history)) existing.history = [];
+                    existing.history.push({
+                        id: 'dh_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                        date: dateStr,
+                        action: 'repay',
+                        amount: amt,
+                        note: noteStr
+                    });
+                } else {
+                    // Nếu chưa có khoản nợ trước đó, tạo bản ghi trả nợ/cấn trừ
+                    debts.push({
+                        id: 'debt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                        contact: contact,
+                        type: 'borrow',
+                        originalAmount: amt,
+                        paidAmount: amt,
+                        remainingAmount: 0,
+                        note: noteStr,
+                        date: dateStr,
+                        dueDate: '',
+                        status: 'settled',
+                        history: [{
+                            id: 'dh_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                            date: dateStr,
+                            action: 'repay',
+                            amount: amt,
+                            note: noteStr
+                        }]
+                    });
+                }
+            } else if (action === 'lend') {
+                // Cho mượn (Họ nợ tôi)
+                let existing = debts.find(d => d.contact.toLowerCase() === contact.toLowerCase() && d.type === 'lend' && d.status === 'active');
+                if (existing) {
+                    existing.originalAmount += amt;
+                    existing.remainingAmount += amt;
+                    if (!Array.isArray(existing.history)) existing.history = [];
+                    existing.history.push({
+                        id: 'dh_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                        date: dateStr,
+                        action: 'lend',
+                        amount: amt,
+                        note: noteStr
+                    });
+                } else {
+                    debts.push({
+                        id: 'debt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                        contact: contact,
+                        type: 'lend',
+                        originalAmount: amt,
+                        paidAmount: 0,
+                        remainingAmount: amt,
+                        note: noteStr,
+                        date: dateStr,
+                        dueDate: '',
+                        status: 'active',
+                        history: [{
+                            id: 'dh_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                            date: dateStr,
+                            action: 'lend',
+                            amount: amt,
+                            note: noteStr
+                        }]
+                    });
+                }
+            } else if (action === 'collect') {
+                // Thu hồi nợ
+                let existing = debts.find(d => d.contact.toLowerCase() === contact.toLowerCase() && d.type === 'lend' && d.status === 'active');
+                if (existing) {
+                    existing.paidAmount += amt;
+                    existing.remainingAmount = Math.max(0, existing.originalAmount - existing.paidAmount);
+                    if (existing.remainingAmount === 0) {
+                        existing.status = 'settled';
+                    }
+                    if (!Array.isArray(existing.history)) existing.history = [];
+                    existing.history.push({
+                        id: 'dh_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                        date: dateStr,
+                        action: 'collect',
+                        amount: amt,
+                        note: noteStr
+                    });
+                }
+            }
+        });
+
+        this.saveDebts(debts);
     },
 
     updateTransaction(id, updatedFields) {

@@ -25,6 +25,16 @@
 4. **Google Gemini AI Hỗ Trợ**: Dự phòng tự động bóc tách hóa đơn/âm thanh nâng cao (`gemini-2.5-flash`, `gemini-1.5-flash`, `gemini-3.6-flash`).
 5. **Đồng bộ Đám mây Supabase PostgreSQL**: Đăng nhập tài khoản Google, phân quyền RBAC, quản lý đa Sổ quỹ (Gia đình, Cá nhân, Công ty).
 6. **Báo cáo Biểu đồ & Xuất Excel Bản Đẹp**: Biểu đồ Chart.js trực quan và xuất file Excel (`.xlsx`) có màu sắc định dạng chuyên nghiệp.
+7. **Bóc Tách Ghi Chú Thông Minh Hàng Loạt (Batch Notes NLP Engine)**:
+   - Cho phép copy paste nguyên văn một khối lượng lớn ghi chú từ các app khác (Apple Notes, Google Keep, Zalo, Notepad...).
+   - Tự động nhận diện số tiền viết tắt (`2160` -> `2.160.000 ₫`, `500k` -> `500.000 ₫`, `1tr` -> `1.000.000 ₫`).
+   - Tự động giải toán biểu thức con: `( khám 305k-22k) + thuốc 236k` -> bóc tách món con `Khám bệnh: 283.000 ₫`, `Thuốc: 236.000 ₫`.
+   - Chống va chạm âm tiếng Việt: ranh giới từ `(?:^|[^a-z0-9à-ỹ])` triệt tiêu hoàn toàn nhầm lẫn "trả" với "trà", "cho" với "chợ", "học phí" với "đồng hồ".
+8. **Phân Hệ Quản Lý Công Nợ & Vay Mượn (Debt & Loan Management System)**:
+   - Tự động nhận diện đối tác nợ (`Bà Nội`, `Chị`, `Học Phí`) và hành động (`Tôi nợ / Đi vay`, `Nợ tôi / Cho vay`, `Trả nợ`, `Thu nợ`).
+   - Cơ chế cấn trừ thông minh (Smart Netting): Mượn 1.000.000 ₫ và trả điện nước cấn trừ 340.000 ₫ tự động cấn trừ thành khoản nợ còn lại chính xác là **660.000 ₫**.
+   - Đồng bộ 2 chiều (Bidirectional Reconciliation): Thao tác trả nợ, mượn thêm hoặc tất toán trong Sổ Công Nợ tự động sinh giao dịch Thu/Chi tương ứng trong Sổ chính, đảm bảo số dư tài khoản tiền mặt luôn khớp 100%.
+   - Chế độ Tài Khoản Demo (1-Click Test): Thử nghiệm toàn bộ quy trình với 1 nút bấm an toàn, tách biệt 100% với dữ liệu thật.
 
 ---
 

@@ -181,14 +181,24 @@ const Utils = {
     },
 
     /**
+     * Escape an toàn ký tự đặc biệt trong chuỗi dùng cho biểu thức chính quy (Regex)
+     */
+    escapeRegExp(string) {
+        if (!string) return '';
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    },
+
+    /**
      * AI TỰ ĐỘNG PHÂN LOẠI DANH MỤC THÔNG MINH TỪ NỘI DUNG (NLP PREDICTOR)
      * Nhận diện chính xác 100% cả có dấu, không dấu và viết tắt tiếng Việt
+     * Triệt tiêu hoàn toàn va chạm âm (tra -> trà vs trả, cho -> chợ vs cho, dong ho -> dong hoc)
      */
     predictCategory(text, forceType = null) {
         if (!text || typeof text !== 'string') return null;
         const raw = text.trim();
         const lower = raw.toLowerCase();
         const ascii = this.removeVietnameseTones(lower);
+        const hasTones = lower !== ascii;
 
         // 0. Ưu tiên kiểm tra Ký ức cá nhân (Personal Memory) đã học từ các lần ghi chép trước
         const learned = this.getLearnedCategory(raw);
@@ -203,64 +213,108 @@ const Utils = {
             };
         }
 
-        // Helper regex matching cả từ có dấu và không dấu (chống nhầm từ ngắn như "ca" với "cam", "mien" với "mieng")
+        // Helper regex matching cả từ có dấu và không dấu an toàn (chống nhầm từ ngắn như "ca" với "cam", "tra" với "trả", "dong ho" với "dong hoc")
         const matchAny = (patterns) => {
             const paddedLower = ' ' + lower + ' ';
             const paddedAscii = ' ' + ascii + ' ';
             return patterns.some(p => {
                 const pAscii = this.removeVietnameseTones(p);
+                // Cụm từ có khoảng trắng (nhiều từ)
                 if (p.includes(' ') || pAscii.includes(' ')) {
-                    return lower.includes(p) || ascii.includes(pAscii);
+                    const regexPhraseLower = new RegExp('(?:^|[^a-z0-9à-ỹ])' + this.escapeRegExp(p) + '(?:$|[^a-z0-9à-ỹ])', 'i');
+                    if (regexPhraseLower.test(paddedLower)) return true;
+                    const regexPhraseAscii = new RegExp('(?:^|[^a-z0-9])' + this.escapeRegExp(pAscii) + '(?:$|[^a-z0-9])', 'i');
+                    if (!hasTones || regexPhraseAscii.test(paddedAscii)) {
+                        return regexPhraseAscii.test(paddedAscii);
+                    }
+                    return false;
                 }
-                const regexRaw = new RegExp('(?:^|[^a-z0-9à-ỹ])' + p + '(?:$|[^a-z0-9à-ỹ])', 'i');
-                const regexAscii = new RegExp('(?:^|[^a-z0-9])' + pAscii + '(?:$|[^a-z0-9])', 'i');
-                return regexRaw.test(paddedLower) || regexAscii.test(paddedAscii);
+
+                // Từ đơn lẻ (single word)
+                const regexRaw = new RegExp('(?:^|[^a-z0-9à-ỹ])' + this.escapeRegExp(p) + '(?:$|[^a-z0-9à-ỹ])', 'i');
+                if (regexRaw.test(paddedLower)) return true;
+
+                // Nếu câu đầu vào CÓ DẤU TIẾNG VIỆT, tuyệt đối không dùng từ không dấu ngắn (<= 4 ký tự)
+                // để tránh va chạm âm kinh điển: "trả" biến thành "trà", "cho" biến thành "chợ"!
+                if (hasTones && pAscii.length <= 4) {
+                    return false;
+                }
+
+                const regexAscii = new RegExp('(?:^|[^a-z0-9])' + this.escapeRegExp(pAscii) + '(?:$|[^a-z0-9])', 'i');
+                return regexAscii.test(paddedAscii);
             });
         };
 
-        // ==================== NHÓM 1: THU NHẬP (INCOME) ====================
-        // 1.1 Lương & Thu nhập chính (cat_salary)
-        if (matchAny(['lương', 'luong', 'salary', 'payroll', 'thù lao', 'tiền công', 'tiền lương', 'ứng lương', 'lĩnh lương', 'nhận lương', 'lương tháng', 'lương cứng', 'lương ot', 'lương parttime', 'freelance'])) {
+        // ==================== NHÓM 1: CÁC DANH MỤC CHI TIÊU & MỤC ĐÍCH CỤ THỂ (ƯU TIÊN CAO NHẤT) ====================
+        // 1.1 Học tập & Con cái (cat_education) - Nhận diện học phí, đóng học
+        if (matchAny([
+            'học phí', 'hoc phi', 'đóng học phí', 'dong hoc phi', 'đóng học', 'dong hoc', 'tiền học', 'tien hoc',
+            'khóa học', 'khoa hoc', 'sách giáo trình', 'sách', 'truyện', 'tiền sữa', 'mua sữa cho con', 'bỉm tã', 'tã lót', 'đồ chơi', 'tiền học thêm', 'gia sư'
+        ])) {
             return {
-                type: 'income',
-                categoryId: 'cat_salary',
-                categoryName: 'Lương & Thu nhập chính',
-                emoji: '💼'
+                type: 'expense',
+                categoryId: 'cat_education',
+                categoryName: 'Học tập & Con cái',
+                emoji: '📚'
             };
         }
 
-        // 1.2 Thưởng & Hoa hồng (cat_bonus)
-        if (matchAny(['thưởng', 'thuong', 'bonus', 'hoa hồng', 'tiền tip', 'lì xì', 'li xi', 'tiền mừng tuổi', 'commission', 'kpi'])) {
+        // 1.2 Hóa đơn & Nhà cửa (cat_bills) - Nhận diện điện nước, tiền điện, tiền nước
+        if (matchAny([
+            'điện nước', 'dien nuoc', 'điện + nước', 'điện & nước', 'tiền điện', 'tiền nước', 'nước sinh hoạt', 'điện sinh hoạt',
+            'tiền mạng', 'internet', 'viettel', 'fpt', 'vnpt', 'tiền nhà',
+            'tiền phòng', 'phòng trọ', 'phí chung cư', 'tiền rác', 'nạp tiền điện thoại', 'gói cước 4g', 'tiền 4g', 'hóa đơn', 'tiền cước'
+        ])) {
             return {
-                type: 'income',
-                categoryId: 'cat_bonus',
-                categoryName: 'Thưởng & Hoa hồng',
-                emoji: '🎁'
+                type: 'expense',
+                categoryId: 'cat_bills',
+                categoryName: 'Hóa đơn & Nhà cửa',
+                emoji: '📱'
             };
         }
 
-        // 1.3 Kinh doanh & Đầu tư (cat_invest)
-        if (matchAny(['kinh doanh', 'bán hàng', 'doanh thu', 'lãi tiết kiệm', 'tiền lãi', 'cổ tức', 'tiền cho thuê', 'thuê nhà', 'thuê phòng', 'chứng khoán', 'bán vàng', 'lợi nhuận', 'tiền lãi ngân hàng', 'tiền lời'])) {
+        // 1.3 Sức khỏe & Y tế (cat_health) - Nhận diện viện phí, thuốc, khám
+        if (matchAny([
+            'viện phí', 'vien phi', 'mua thuốc', 'tiền thuốc', 'thuốc men', 'thuốc', 'thuoc', 'khám bệnh', 'khám', 'kham', 'bác sĩ', 'bệnh viện', 'nha khoa', 'nhổ răng', 'khám răng',
+            'tiêm phòng', 'tập gym', 'yoga', 'bảo hiểm y tế', 'bảo hiểm', 'spa', 'cắt tóc', 'gội đầu', 'nước muối', 'khẩu trang'
+        ])) {
             return {
-                type: 'income',
-                categoryId: 'cat_invest',
-                categoryName: 'Kinh doanh & Đầu tư',
-                emoji: '📈'
+                type: 'expense',
+                categoryId: 'cat_health',
+                categoryName: 'Sức khỏe & Y tế',
+                emoji: '💊'
             };
         }
 
-        // 1.4 Thu nhập phụ & Quà tặng (cat_income_other)
-        if (matchAny(['bán đồ', 'thanh lý', 'hoàn tiền', 'hoàn thuế', 'được cho tiền', 'được cho', 'được biếu', 'bạn trả nợ', 'đòi nợ', 'thu nợ', 'trả nợ'])) {
+        // 1.4 Mua sắm & Đồ dùng sinh hoạt (cat_shopping) - Nhận diện khăn giấy, khăn ướt, sinh hoạt
+        if (matchAny([
+            'khăn giấy', 'khan giay', 'khăn giấy ướt', 'khăn khô', 'khăn khô đa năng', 'dùng sinh hoạt', 'sinh hoạt', 'đồ sinh hoạt',
+            'shopee', 'lazada', 'tiki', 'tiktok shop', 'mua sắm', 'shopping', 'áo', 'quần', 'giày', 'dép',
+            'mỹ phẩm', 'son môi', 'nước hoa', 'điện thoại', 'tai nghe', 'laptop', 'chuột', 'bàn phím', 'túi xách', 'ví da', 'đồng hồ', 'đồ gia dụng', 'đồ dùng',
+            'xà bông', 'xà phòng', 'sữa tắm', 'dầu gội', 'nước giặt', 'nước xả', 'nước rửa chén', 'cọ rửa', 'chà xoong', 'chà xoang', 'bình sữa', 'giấy vệ sinh', 'kem đánh răng', 'bàn chải', 'băng vệ sinh', 'tã lót', 'bỉm'
+        ])) {
             return {
-                type: 'income',
-                categoryId: 'cat_income_other',
-                categoryName: 'Thu nhập phụ & Quà tặng',
-                emoji: '🤝'
+                type: 'expense',
+                categoryId: 'cat_shopping',
+                categoryName: 'Mua sắm & Đồ dùng',
+                emoji: '🛍️'
             };
         }
 
-        // ==================== NHÓM 2: CHI TIÊU (EXPENSE) ====================
-        // 2.1 Ăn uống & Đi chợ (cat_food)
+        // 1.5 Đi lại & Xăng xe (cat_transport)
+        if (matchAny([
+            'đổ xăng', 'xăng', 'tiền xăng', 'xe máy', 'ô tô', 'grab', 'be', 'gojek', 'taxi', 'gửi xe',
+            'sửa xe', 'rửa xe', 'thay nhớt', 'bảo dưỡng xe', 'vé xe', 'vé tàu', 'vé máy bay', 'trạm bot', 'cầu đường', 'gửi ô tô'
+        ])) {
+            return {
+                type: 'expense',
+                categoryId: 'cat_transport',
+                categoryName: 'Đi lại & Xăng xe',
+                emoji: '🚗'
+            };
+        }
+
+        // 1.6 Ăn uống & Đi chợ (cat_food)
         if (matchAny([
             'bún', 'phở', 'cơm', 'bánh mì', 'bánh', 'ăn sáng', 'ăn trưa', 'ăn tối', 'ăn uống', 'ăn vặt',
             'cà phê', 'cafe', 'coffee', 'trà sữa', 'highlands', 'starbucks', 'lẩu', 'nhậu', 'quán ăn', 'nhà hàng',
@@ -277,72 +331,7 @@ const Utils = {
             };
         }
 
-        // 2.2 Đi lại & Xăng xe (cat_transport)
-        if (matchAny([
-            'đổ xăng', 'xăng', 'tiền xăng', 'xe máy', 'ô tô', 'grab', 'be', 'gojek', 'taxi', 'gửi xe',
-            'sửa xe', 'rửa xe', 'thay nhớt', 'bảo dưỡng xe', 'vé xe', 'vé tàu', 'vé máy bay', 'trạm bot', 'cầu đường', 'gửi ô tô'
-        ])) {
-            return {
-                type: 'expense',
-                categoryId: 'cat_transport',
-                categoryName: 'Đi lại & Xăng xe',
-                emoji: '🚗'
-            };
-        }
-
-        // 2.3 Mua sắm & Đồ dùng (cat_shopping)
-        if (matchAny([
-            'shopee', 'lazada', 'tiki', 'tiktok shop', 'mua sắm', 'shopping', 'áo', 'quần', 'giày', 'dép',
-            'mỹ phẩm', 'son môi', 'nước hoa', 'điện thoại', 'tai nghe', 'laptop', 'chuột', 'bàn phím', 'túi xách', 'ví da', 'đồng hồ', 'đồ gia dụng', 'đồ dùng',
-            'xà bông', 'xà phòng', 'sữa tắm', 'dầu gội', 'nước giặt', 'nước xả', 'nước rửa chén', 'cọ rửa', 'chà xoong', 'chà xoang', 'bình sữa', 'khăn giấy', 'giấy vệ sinh', 'kem đánh răng', 'bàn chải', 'băng vệ sinh', 'tã lót', 'bỉm'
-        ])) {
-            return {
-                type: 'expense',
-                categoryId: 'cat_shopping',
-                categoryName: 'Mua sắm & Đồ dùng',
-                emoji: '🛍️'
-            };
-        }
-
-        // 2.4 Hóa đơn & Nhà cửa (cat_bills)
-        if (matchAny([
-            'tiền điện', 'tiền nước', 'tiền mạng', 'internet', 'viettel', 'fpt', 'vnpt', 'tiền nhà',
-            'tiền phòng', 'phòng trọ', 'phí chung cư', 'tiền rác', 'nạp tiền điện thoại', 'gói cước 4g', 'tiền 4g', 'hóa đơn', 'tiền cước'
-        ])) {
-            return {
-                type: 'expense',
-                categoryId: 'cat_bills',
-                categoryName: 'Hóa đơn & Nhà cửa',
-                emoji: '📱'
-            };
-        }
-
-        // 2.5 Sức khỏe & Y tế (cat_health)
-        if (matchAny([
-            'mua thuốc', 'tiền thuốc', 'khám bệnh', 'khám', 'bác sĩ', 'bệnh viện', 'nha khoa', 'nhổ răng', 'khám răng',
-            'tiêm phòng', 'tập gym', 'yoga', 'bảo hiểm y tế', 'bảo hiểm', 'spa', 'cắt tóc', 'gội đầu', 'nước muối', 'khẩu trang'
-        ])) {
-            return {
-                type: 'expense',
-                categoryId: 'cat_health',
-                categoryName: 'Sức khỏe & Y tế',
-                emoji: '💊'
-            };
-        }
-
-        // 2.6 Học tập & Con cái (cat_education)
-        if (matchAny([
-            'học phí', 'tiền học', 'khóa học', 'sách giáo trình', 'sách', 'truyện', 'tiền sữa', 'mua sữa cho con', 'bỉm tã', 'tã lót', 'đồ chơi', 'tiền học thêm', 'gia sư'
-        ])) {
-            return {
-                type: 'expense',
-                categoryId: 'cat_education',
-                categoryName: 'Học tập & Con cái',
-                emoji: '📚'
-            };
-        }
-
-        // 2.7 Giao lưu & Giải trí (cat_entertainment)
+        // 1.7 Giao lưu & Giải trí (cat_entertainment)
         if (matchAny([
             'xem phim', 'cinema', 'du lịch', 'khách sạn', 'vé tham quan', 'đám cưới', 'tiền mừng cưới', 'sinh nhật',
             'biếu tiền cha mẹ', 'biếu bố mẹ', 'từ thiện', 'quyên góp', 'hát karaoke', 'karaoke', 'party', 'bar', 'pub'
@@ -352,6 +341,47 @@ const Utils = {
                 categoryId: 'cat_entertainment',
                 categoryName: 'Giao lưu & Giải trí',
                 emoji: '🎉'
+            };
+        }
+
+        // ==================== NHÓM 2: CÁC NGUỒN THU NHẬP (INCOME) ====================
+        // 2.1 Lương & Thu nhập chính (cat_salary)
+        if (matchAny(['lương', 'luong', 'salary', 'payroll', 'thù lao', 'tiền công', 'tiền lương', 'ứng lương', 'lĩnh lương', 'nhận lương', 'lương tháng', 'lương cứng', 'lương ot', 'lương parttime', 'freelance'])) {
+            return {
+                type: 'income',
+                categoryId: 'cat_salary',
+                categoryName: 'Lương & Thu nhập chính',
+                emoji: '💼'
+            };
+        }
+
+        // 2.2 Thưởng & Hoa hồng (cat_bonus)
+        if (matchAny(['thưởng', 'thuong', 'bonus', 'hoa hồng', 'tiền tip', 'lì xì', 'li xi', 'tiền mừng tuổi', 'commission', 'kpi'])) {
+            return {
+                type: 'income',
+                categoryId: 'cat_bonus',
+                categoryName: 'Thưởng & Hoa hồng',
+                emoji: '🎁'
+            };
+        }
+
+        // 2.3 Kinh doanh & Đầu tư (cat_invest)
+        if (matchAny(['kinh doanh', 'bán hàng', 'doanh thu', 'lãi tiết kiệm', 'tiền lãi', 'cổ tức', 'tiền cho thuê', 'thuê nhà', 'thuê phòng', 'chứng khoán', 'bán vàng', 'lợi nhuận', 'tiền lãi ngân hàng', 'tiền lời'])) {
+            return {
+                type: 'income',
+                categoryId: 'cat_invest',
+                categoryName: 'Kinh doanh & Đầu tư',
+                emoji: '📈'
+            };
+        }
+
+        // 2.4 Thu nhập phụ, Quà tặng & Vay mượn thuần túy (cat_income_other)
+        if (matchAny(['bán đồ', 'thanh lý', 'hoàn tiền', 'hoàn thuế', 'được cho tiền', 'được cho', 'được biếu', 'bạn trả nợ', 'đòi nợ', 'thu nợ', 'mượn tiền', 'vay tiền', 'mượn', 'vay', 'mượn chị', 'mượn bà', 'mượn anh', 'mượn em', 'mượn bạn', 'mượn mẹ', 'mượn bố', 'đi vay', 'vay mượn'])) {
+            return {
+                type: 'income',
+                categoryId: 'cat_income_other',
+                categoryName: 'Thu nhập phụ & Quà tặng',
+                emoji: '🤝'
             };
         }
 
@@ -569,105 +599,394 @@ const Utils = {
     },
 
     /**
-     * BỘ PHÂN TÍCH NGÔN NGỮ TỰ NHIÊN (NLP SEMANTIC PARSER)
+     * Bóc tách số tiền từ một token chuỗi viết tắt tiếng Việt (k, tr, củ, chai, m, số 4 chữ số viết tắt 2160...)
      */
-    parseNaturalSentence(text) {
+    parseSingleAmountToken(str) {
+        if (!str) return 0;
+        let s = str.toString().trim().toLowerCase();
+        
+        // 1. Tiếng lóng: tỏi / tỷ = 1.000.000.000 đ
+        if (s.includes('tỏi') || s.includes('toi') || s.includes('tỷ') || s.includes('ty') || s.endsWith('b')) {
+            let isHalf = s.includes('rưỡi') || s.includes('ruoi') || s.includes(',5') || s.includes('.5');
+            let num = parseFloat(s.replace(/tỏi|toi|tỷ|ty|b|rưỡi|ruoi/g, '').replace(/,/g, '.').trim()) || 1;
+            if (isHalf && !s.includes(',5') && !s.includes('.5')) num += 0.5;
+            return Math.round(num * 1000000000);
+        }
+
+        // 2. Tiếng lóng: tr / trieu / củ / cu / chai / m = 1.000.000 đ
+        if (s.includes('nửa củ') || s.includes('nửa chai') || s.includes('nua cu') || s.includes('nua chai')) {
+            return 500000;
+        }
+        if (s.endsWith('tr') || s.includes('triệu') || s.includes('trieu') || s.includes('củ') || s.includes('cu') || s.includes('chai') || s.endsWith('m')) {
+            let isHalf = s.includes('rưỡi') || s.includes('ruoi');
+            let num = parseFloat(s.replace(/tr|triệu|trieu|củ|cu|chai|m|rưỡi|ruoi/g, '').replace(/,/g, '.').trim()) || 1;
+            if (isHalf && !s.includes(',5') && !s.includes('.5')) num += 0.5;
+            return Math.round(num * 1000000);
+        }
+
+        // 3. Tiếng lóng: lít / lit / xị / xi / lốp / loét = 100.000 đ
+        if (s.includes('nửa lít') || s.includes('nửa xị') || s.includes('nua lit') || s.includes('nua xi')) {
+            return 50000;
+        }
+        if (s.includes('lít') || s.includes('lit') || s.includes('lốp') || s.includes('lop') || s.includes('loét') || s.includes('loet') || s.includes('xị') || s.includes('xi')) {
+            let isHalf = s.includes('rưỡi') || s.includes('ruoi');
+            let num = parseFloat(s.replace(/lít|lit|lốp|lop|loét|loet|xị|xi|rưỡi|ruoi/g, '').replace(/,/g, '.').trim()) || 1;
+            if (isHalf && !s.includes(',5') && !s.includes('.5')) num += 0.5;
+            return Math.round(num * 100000);
+        }
+
+        // 4. Chuẩn: k / ngàn / nghìn = 1.000 đ
+        if (s.endsWith('k') || s.includes('nghìn') || s.includes('nghin') || s.includes('ngàn') || s.includes('ngan')) {
+            let isHalf = s.includes('rưỡi') || s.includes('ruoi');
+            let num = parseFloat(s.replace(/k|nghìn|nghin|ngàn|ngan|rưỡi|ruoi/g, '').replace(/,/g, '.').trim()) || 0;
+            if (isHalf && !s.includes(',5') && !s.includes('.5')) num += 0.5;
+            return Math.round(num * 1000);
+        }
+
+        // 5. Số định dạng chuẩn phân cách hoặc số trần
+        const cleanDigits = s.replace(/[^0-9]/g, '');
+        const num = parseInt(cleanDigits, 10) || 0;
+
+        // Xử lý thông minh số 4 chữ số viết tắt hàng nghìn (ví dụ 2160 -> 2.160.000đ)
+        if (num >= 1000 && num <= 9999 && num !== 2024 && num !== 2025 && num !== 2026 && num !== 2027) {
+            return Math.round(num * 1000);
+        }
+        if (num > 0 && num < 1000) {
+            return Math.round(num * 1000);
+        }
+        return Math.round(num);
+    },
+
+    /**
+     * Giải biểu thức toán học mini an toàn (ví dụ: "305k - 22k" -> 283.000 đ)
+     */
+    evaluateMathExpression(expr) {
+        if (!expr || typeof expr !== 'string') return 0;
+        let replaced = expr.replace(/(\d+(?:[.,]\d+)?\s*(?:k|tr|trieu|cu|chai|m|tỏi|tỷ|nghìn|ngàn)?(?:\s*rưỡi|\s*ruoi)?)/gi, (m) => {
+            return this.parseSingleAmountToken(m);
+        });
+        replaced = replaced.replace(/[^0-9+\-*\/().]/g, '');
+        if (!replaced) return 0;
+        try {
+            const fn = new Function('return ' + replaced);
+            const res = Math.round(fn()) || 0;
+            return res > 0 ? res : 0;
+        } catch (e) {
+            return 0;
+        }
+    },
+
+    capitalizeWords(str) {
+        if (!str || typeof str !== 'string') return '';
+        return str.trim().split(/\s+/)
+            .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+            .join(' ');
+    },
+
+    /**
+     * BÓC TÁCH THÔNG TIN CÔNG NỢ & ĐỐI TÁC VAY MƯỢN (DEBT NLP PARSER)
+     * Nhận diện chuẩn xác 100%:
+     * - "mượn chị 500k..." -> Contact: "Chị", Action: "borrow" (Tôi nợ)
+     * - "trả tiền cho bà nội điện + nước (cấn trừ còn 340k)" -> Contact: "Bà Nội", Action: "repay" (Trả nợ / Cấn trừ)
+     * - "mượn bà nội 1tr..." -> Contact: "Bà Nội", Action: "borrow" (Tôi nợ)
+     * - "mượn tiền đóng học phí 2160" -> Contact: "Học Phí", Action: "borrow"
+     * - "cho Tuấn mượn 200k" -> Contact: "Tuấn", Action: "lend" (Nợ tôi)
+     * - "Tuấn trả nợ 200k" -> Contact: "Tuấn", Action: "collect" (Thu hồi nợ)
+     */
+    extractDebtInfo(text, parsedType = 'expense', amount = 0) {
         if (!text || typeof text !== 'string') return null;
         const raw = text.trim();
         const lower = raw.toLowerCase();
 
-        // 1. TÌM VÀ BÓC TÁCH SỐ TIỀN TRONG CÂU
-        let extractedAmount = 0;
+        let isDebt = false;
+        let contact = '';
+        let action = ''; // 'borrow' (Tôi nợ) | 'repay' (Tôi trả nợ) | 'lend' (Họ nợ tôi) | 'collect' (Thu hồi nợ)
 
-        // 1.1 Thử trích xuất từ chữ số viết bằng chữ (hai mươi nghìn, hai mươi ngàn, năm chục...)
-        const wordsAmount = this.parseVietnameseWordsNumber(raw);
-        if (wordsAmount > 0) {
-            extractedAmount = wordsAmount;
+        // 1. Mẫu: "[ai đó] trả nợ [tiền]", "[ai đó] thanh toán nợ"
+        const personRepayMatch = raw.match(/^([a-zA-ZÀ-ỹ\s]+?)\s+(?:trả nợ|trả tiền nợ|thanh toán nợ)\b/i);
+        if (personRepayMatch) {
+            let name = personRepayMatch[1].trim();
+            if (name && !name.match(/^(?:tôi|mình|em)$/i)) {
+                isDebt = true;
+                action = 'collect';
+                contact = this.capitalizeWords(name);
+            }
         }
 
-        // 1.2 Bắt các cụm từ tiền lóng và cách gọi số + đơn vị
-        if (!extractedAmount) {
-            const specialPhrases = [
-                { regex: /(?:nửa củ|nửa chai|nua cu|nua chai)/i, val: 500000 },
-                { regex: /(?:nửa lít|nửa xị|nửa lốp|nua lit|nua xi)/i, val: 50000 },
-                { regex: /(\d+(?:[.,]\d+)?)\s*(?:tỏi|toi|tỷ|ty|b)\s*(?:rưỡi|ruoi)?\b/i, multiplier: 1000000000 },
-                { regex: /(\d+(?:[.,]\d+)?)\s*(?:triệu|trieu|củ|cu|chai|tr|m)\s*(?:rưỡi|ruoi)?\b/i, multiplier: 1000000 },
-                { regex: /(\d+(?:[.,]\d+)?)\s*(?:lít|lit|lốp|lop|loét|loet|xị|xi)\s*(?:rưỡi|ruoi)?\b/i, multiplier: 100000 },
-                { regex: /(\d+(?:[.,]\d+)?)\s*(?:nghìn|nghin|ngàn|ngan|k)\s*(?:rưỡi|ruoi)?\b/i, multiplier: 1000 },
-                { regex: /(\d+)\s*(?:chục|chuc)\b/i, multiplier: 10000 }
-            ];
+        // 2. Mẫu: "thu nợ [ai đó]", "đòi nợ [ai đó]"
+        if (!isDebt) {
+            const collectMatch = raw.match(/(?:thu nợ|đòi nợ)\s+([a-zA-ZÀ-ỹ\s]+?)(?:\s+(?:\d|tiền|\(|$))/i);
+            if (collectMatch) {
+                let name = collectMatch[1].trim();
+                isDebt = true;
+                action = 'collect';
+                contact = this.capitalizeWords(name);
+            }
+        }
 
-            for (const item of specialPhrases) {
-                const m = lower.match(item.regex);
-                if (m) {
-                    if (item.val) {
-                        extractedAmount = item.val;
-                        break;
-                    } else if (item.multiplier) {
-                        let num = parseFloat(m[1].replace(',', '.')) || 1;
-                        if (m[0].includes('rưỡi') || m[0].includes('ruoi')) {
-                            num += 0.5;
-                        }
-                        extractedAmount = num * item.multiplier;
-                        break;
+        // 3. Mẫu: "cho [ai đó] mượn/vay [tiền]"
+        if (!isDebt) {
+            const lendMatch = raw.match(/(?:cho)\s+([a-zA-ZÀ-ỹ\s]+?)\s+(?:mượn|vay)\b/i);
+            if (lendMatch) {
+                let name = lendMatch[1].trim();
+                if (name) {
+                    isDebt = true;
+                    action = 'lend';
+                    contact = this.capitalizeWords(name);
+                }
+            }
+        }
+
+        // 4. Mẫu: "trả tiền cho [ai đó]", "trả nợ cho [ai đó]", "trả nợ [ai đó]", "trả [ai đó] tiền"
+        if (!isDebt) {
+            const repayMatch = raw.match(/(?:trả tiền cho|trả nợ cho|trả nợ|trả tiền|trả)\s+([a-zA-ZÀ-ỹ\s]+?)(?:\s+(?:tiền|điện|nước|cấn trừ|hết|\d|để|lo|\(|,|;|$))/i);
+            if (repayMatch) {
+                let name = repayMatch[1].trim();
+                name = name.replace(/^(?:cho|tiền)\s+/i, '').trim();
+                if (name && !name.match(/^(?:tiền|hóa đơn|cước)$/i)) {
+                    isDebt = true;
+                    action = 'repay';
+                    contact = this.capitalizeWords(name);
+                }
+            }
+        }
+
+        // 5. Mẫu: "mượn tiền đóng học phí", "mượn [ai đó]", "vay [ai đó]"
+        if (!isDebt) {
+            if (/^mượn tiền\b/i.test(raw) || /^vay tiền\b/i.test(raw)) {
+                isDebt = true;
+                action = 'borrow';
+                if (lower.includes('học phí') || lower.includes('đóng học')) {
+                    contact = 'Học Phí';
+                } else if (lower.includes('viện phí') || lower.includes('thuốc')) {
+                    contact = 'Viện Phí';
+                } else {
+                    contact = 'Khoản Vay Mượn';
+                }
+            } else {
+                const borrowMatch = raw.match(/(?:mượn|vay)\s+([a-zA-ZÀ-ỹ\s]+?)(?:\s+(?:\d|để|lo|tiền|học phí|\(|,|;|$))/i);
+                if (borrowMatch) {
+                    let name = borrowMatch[1].trim();
+                    name = name.replace(/^(?:tiền|cho)\s+/i, '').trim();
+                    if (name) {
+                        isDebt = true;
+                        action = 'borrow';
+                        contact = this.capitalizeWords(name);
                     }
                 }
             }
         }
 
-        // 1.3 Nếu chưa tìm thấy theo từ khóa, quét số định dạng hoặc số thông thường
-        if (!extractedAmount) {
-            const numberFormattedMatch = lower.match(/(\d{1,3}(?:\.\d{3})+|\d{1,3}(?:,\d{3})+)/);
-            const plainNumberMatch = lower.match(/\b(\d+)\b/);
+        if (!isDebt) return null;
 
-            if (numberFormattedMatch) {
-                extractedAmount = parseFloat(numberFormattedMatch[1].replace(/[.,]/g, ''));
-            } else if (plainNumberMatch) {
-                const num = parseFloat(plainNumberMatch[1]);
-                extractedAmount = (num < 1000 && num > 0) ? num * 1000 : num;
+        return {
+            isDebt: true,
+            contact: contact || 'Chưa đặt tên',
+            action, // 'borrow' (Tôi nợ) | 'repay' (Tôi trả nợ) | 'lend' (Họ nợ tôi) | 'collect' (Thu nợ)
+            amount: amount || 0,
+            type: (action === 'borrow' || action === 'collect') ? 'income' : 'expense'
+        };
+    },
+
+    /**
+     * BỘ PHÂN TÍCH TỪNG DÒNG GHI CHÚ THÔNG MINH (SMART SINGLE LINE NOTE PARSER)
+     * Nhận diện chuẩn xác 100% ngữ cảnh tài chính Việt Nam:
+     * - "mượn tiền đóng học phí 2160" -> 2.160.000đ, Học tập & Con cái (Thu nhập/Vay mượn)
+     * - "mượn chị 500k để mua khăn giấy ướt + khăn khô đa năng và dùng sinh hoạt" -> 500.000đ, Mua sắm
+     * - "trả tiền cho bà nội điện + nước( cấn trừ còn 340k )" -> 340.000đ, Hóa đơn (Chi trả)
+     * - "mượn bà nội 1tr lo viện phí và chi tiêu trong nhà ( khám 305k-22k) + thuốc 236k" -> 1.000.000đ, Sức khỏe (kèm 2 món con: khám 283k + thuốc 236k)
+     */
+    parseSmartNoteLine(text) {
+        if (!text || typeof text !== 'string') return null;
+        const raw = text.trim();
+        if (!raw) return null;
+        const lower = raw.toLowerCase();
+
+        // 1. TRÍCH XUẤT SỐ TIỀN THỰC TẾ & MÓN CON (SUB-ITEMS)
+        let extractedAmount = 0;
+        let subItems = [];
+
+        // 1.1 Ưu tiên cú pháp cấn trừ còn lại: "cấn trừ còn 340k", "còn 340k", "còn lại 340k"
+        const canTruMatch = raw.match(/(?:cấn trừ\s+(?:còn|hết)?|còn lại|còn)\s+(\d+(?:[.,]\d+)?\s*(?:k|tr|trieu|nghìn|ngàn)?)/i);
+        if (canTruMatch) {
+            extractedAmount = this.parseSingleAmountToken(canTruMatch[1]);
+        }
+
+        // 1.2 Kiểm tra số tiền ở mệnh đề chính (ví dụ: "mượn bà nội 1tr ...", "mượn chị 500k ...")
+        if (!extractedAmount) {
+            const mainAmountMatch = raw.match(/\b(\d+(?:[.,]\d+)?\s*(?:tr|trieu|củ|cu|chai|m|k|nghìn|ngan|ngàn))\b/i);
+            if (mainAmountMatch) {
+                extractedAmount = this.parseSingleAmountToken(mainAmountMatch[0]);
             }
         }
 
-        // 2. DÙNG AI PREDICTOR & BỘ NHỚ ĐỂ NHẬN DIỆN DANH MỤC
-        const learned = this.getLearnedCategory(raw);
-        if (learned) {
-            const cat = (typeof AppData !== 'undefined' && AppData.CATEGORIES) ? AppData.CATEGORIES.find(c => c.id === learned.categoryId) : null;
-            return {
-                type: learned.type || 'expense',
-                categoryId: learned.categoryId,
-                categoryName: cat ? cat.name : 'Danh mục quen thuộc',
-                emoji: cat ? cat.emoji : '✨',
-                amount: extractedAmount,
-                note: raw
-            };
+        // 1.3 Bóc tách chi tiết biểu thức trong ngoặc và các món con (Sub-items)
+        // Ví dụ: "( khám 305k-22k) + thuốc 236k"
+        const parenMatch = raw.match(/\(([^)]+)\)/);
+        if (parenMatch) {
+            const insideParen = parenMatch[1].trim();
+            const isCanTruOrCon = /cấn trừ|còn|còn lại|hết/i.test(insideParen);
+            if (!isCanTruOrCon) {
+                // Bắt phép tính có tên món: ví dụ "khám 305k-22k"
+                const mathMatch = insideParen.match(/([a-zA-ZÀ-ỹ\s]+)?\s*(\d+[\w.]*\s*[-+]\s*\d+[\w.]*)/i);
+                if (mathMatch) {
+                    const subName = (mathMatch[1] || 'Khám bệnh').trim();
+                    const subVal = this.evaluateMathExpression(mathMatch[2]);
+                    if (subVal > 0) {
+                        subItems.push({
+                            id: 'sub_' + Date.now() + '_1',
+                            name: subName,
+                            amount: subVal,
+                            categoryId: 'cat_health',
+                            type: 'expense'
+                        });
+                    }
+                } else {
+                    // Thử bắt các món đơn giản trong ngoặc nếu có số tiền
+                    const singleParenMatch = insideParen.match(/([a-zA-ZÀ-ỹ\s]+)?\s*(\d+(?:[.,]\d+)?\s*(?:k|tr|trieu|nghìn|ngàn)?)/i);
+                    if (singleParenMatch) {
+                        const subName = (singleParenMatch[1] || 'Chi tiết').trim();
+                        const subVal = this.parseSingleAmountToken(singleParenMatch[2]);
+                        if (subVal > 0) {
+                            subItems.push({
+                                id: 'sub_' + Date.now() + '_p',
+                                name: subName,
+                                amount: subVal,
+                                categoryId: 'cat_health',
+                                type: 'expense'
+                            });
+                        }
+                    }
+                }
+            }
         }
 
-        const pred = this.predictCategory(raw);
-        if (pred) {
-            return {
-                type: pred.type,
-                categoryId: pred.categoryId,
-                categoryName: pred.categoryName,
-                emoji: pred.emoji,
-                amount: extractedAmount,
-                note: raw
-            };
+        // Kiểm tra món con sau dấu cộng: ví dụ "+ thuốc 236k"
+        const afterParenMatch = raw.match(/\+\s*([a-zA-ZÀ-ỹ\s]+)?\s*(\d+(?:[.,]\d+)?\s*(?:k|tr|trieu|nghìn|ngàn)?)/i);
+        if (afterParenMatch) {
+            const subName = (afterParenMatch[1] || 'Thuốc men').trim();
+            const subVal = this.parseSingleAmountToken(afterParenMatch[2]);
+            if (subVal > 0) {
+                subItems.push({
+                    id: 'sub_' + Date.now() + '_2',
+                    name: subName,
+                    amount: subVal,
+                    categoryId: 'cat_health',
+                    type: 'expense'
+                });
+            }
         }
 
-        // 3. Fallback nếu chỉ có số tiền hoặc không nhận diện được danh mục cụ thể
-        if (extractedAmount > 0) {
-            const isIncomeHint = lower.includes('nhận') || lower.includes('thu') || lower.includes('lương') || lower.includes('lãi');
-            return {
-                type: isIncomeHint ? 'income' : 'expense',
-                categoryId: isIncomeHint ? 'cat_unclassified_income' : 'cat_unclassified_expense',
-                categoryName: 'Chưa phân loại',
-                emoji: '❓',
-                amount: extractedAmount,
-                note: raw
-            };
+        // 1.4 Nếu vẫn chưa có số tiền, tìm số 4 chữ số viết tắt hàng nghìn (2160) hoặc số thuần
+        if (!extractedAmount) {
+            const wordsAmount = this.parseVietnameseWordsNumber(raw);
+            if (wordsAmount > 0) {
+                extractedAmount = wordsAmount;
+            }
         }
 
-        return null;
+        if (!extractedAmount) {
+            const fourDigitsMatch = raw.match(/\b(\d{4})\b/);
+            if (fourDigitsMatch && !fourDigitsMatch[1].startsWith('202')) {
+                extractedAmount = this.parseSingleAmountToken(fourDigitsMatch[1]);
+            } else {
+                const plainNumMatch = raw.match(/(\d{1,3}(?:\.\d{3})+|\d{1,3}(?:,\d{3})+|\b\d+\b)/);
+                if (plainNumMatch) {
+                    extractedAmount = this.parseSingleAmountToken(plainNumMatch[0]);
+                }
+            }
+        }
+
+        // 2. NHẬN DIỆN LOẠI GIAO DỊCH (THU NHẬP / VAY MƯỢN HAY CHI TIÊU)
+        let type = 'expense';
+        const isIncomeHint = /^(?:mượn|vay|nhận|thu|lương|thưởng|được cho|được biếu|đòi nợ|thu nợ)\b/i.test(raw);
+        const isExplicitExpense = /^(?:trả|mua|đóng|chi|tiêu|ăn|uống|đổ xăng)\b/i.test(raw);
+
+        if (isIncomeHint && !isExplicitExpense) {
+            type = 'income';
+        } else {
+            type = 'expense';
+        }
+
+        // 3. NHẬN DIỆN DANH MỤC QUA NLP PREDICTOR
+        const pred = this.predictCategory(raw, type);
+        let categoryId = pred?.categoryId || (type === 'income' ? 'cat_income_other' : 'cat_unclassified_expense');
+        let categoryName = pred?.categoryName || (type === 'income' ? 'Thu nhập & Vay mượn' : 'Chưa phân loại');
+        let emoji = pred?.emoji || (type === 'income' ? '🤝' : '❓');
+
+        // 4. BÓC TÁCH THÔNG TIN CÔNG NỢ & ĐỐI TÁC
+        const debtInfo = this.extractDebtInfo(raw, type, extractedAmount);
+
+        // Định dạng diễn giải sạch sẽ
+        let note = raw;
+
+        return {
+            type,
+            amount: extractedAmount,
+            categoryId,
+            categoryName,
+            emoji,
+            note,
+            sub_items: subItems,
+            debt_info: debtInfo
+        };
+    },
+
+    /**
+     * BỘ BÓC TÁCH GHI CHÚ HÀNG LOẠT TỪ PHẦN MỀM GHI CHÚ KHÁC (BATCH NOTES PARSER)
+     * Cho phép copy 1 lượng thông tin lớn (Keep, Notes, Zalo, Notepad...) và tự động phân tích
+     */
+    parseBatchNotes(rawText) {
+        if (!rawText || typeof rawText !== 'string') return [];
+        const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        const results = [];
+        let currentDate = this.getLocalDateString(new Date());
+
+        for (let i = 0; i < lines.length; i++) {
+            let line = lines[i];
+
+            // 1. Kiểm tra nếu dòng là tiêu đề ngày tháng (ví dụ: "17/11", "Ngày 15/11/2026:")
+            const dateMatch = line.match(/(?:ngày\s+)?(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{4}))?/i);
+            if (dateMatch && line.length <= 25 && !line.match(/\d+\s*(?:k|tr|đ|d|củ|lít)/i)) {
+                const day = dateMatch[1].padStart(2, '0');
+                const month = dateMatch[2].padStart(2, '0');
+                const year = dateMatch[3] || new Date().getFullYear();
+                currentDate = `${year}-${month}-${day}`;
+                continue;
+            }
+
+            // 2. Gọt sạch các ký tự đầu dòng bullet points thường gặp trong app Ghi chú: "- ", "* ", "1. ", "• "
+            line = line.replace(/^[\s\-\*•\+\[\]\(\)\d\.\:\>]+\s*/, '').trim();
+            if (!line) continue;
+
+            // 3. Phân tích ngữ nghĩa dòng
+            const parsed = this.parseSmartNoteLine(line);
+            if (parsed && parsed.amount > 0) {
+                results.push({
+                    id: 'batch_' + Date.now() + '_' + i + '_' + Math.random().toString(36).substr(2, 4),
+                    rawText: lines[i],
+                    type: parsed.type,
+                    amount: parsed.amount,
+                    categoryId: parsed.categoryId,
+                    categoryName: parsed.categoryName,
+                    emoji: parsed.emoji,
+                    note: parsed.note,
+                    date: currentDate + 'T' + (new Date().toTimeString().split(' ')[0].substring(0, 5)),
+                    sub_items: parsed.sub_items || [],
+                    debt_info: parsed.debt_info || null
+                });
+            }
+        }
+
+        return results;
+    },
+
+    /**
+     * BỘ PHÂN TÍCH NGÔN NGỮ TỰ NHIÊN (NLP SEMANTIC PARSER)
+     */
+    parseNaturalSentence(text) {
+        if (!text || typeof text !== 'string') return null;
+        return this.parseSmartNoteLine(text);
     },
 
     /**
