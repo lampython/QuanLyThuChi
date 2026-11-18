@@ -206,7 +206,11 @@
                             </button>
 
                             <div class="menu-divider"></div>
-                            <div class="menu-group-label" style="font-size: 10px; font-weight: 700; color: #94a3b8; padding: 4px 10px; text-transform: uppercase; letter-spacing: 0.5px;">Tiện ích & Dữ liệu</div>
+                            <div class="menu-group-label" style="font-size: 10px; font-weight: 700; color: #94a3b8; padding: 4px 10px; text-transform: uppercase; letter-spacing: 0.5px;">Tiện ích & Cập nhật</div>
+                            <button class="menu-item-btn btn-menu-force-update" id="btnMenuForceUpdate" onclick="handleForceUpdateApp()" style="background: #eff6ff; border: 1px solid #bfdbfe;">
+                                <i class="fa-solid fa-arrows-rotate" style="color: #2563eb;"></i> <span>Cập nhật ứng dụng (v1.7.8)</span>
+                                <span class="badge-update-action" style="font-size: 10px; padding: 2px 7px; border-radius: 6px; background: #2563eb; color: #ffffff; font-weight: 800; margin-left: auto;">Nâng cấp 🔥</span>
+                            </button>
                             <div class="menu-item-toggle-row" style="display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; font-size: 12.5px; color: var(--text-main);">
                                 <span style="display: flex; align-items: center; gap: 8px;">
                                     <i class="fa-regular fa-bell" style="color: var(--primary);"></i> <span>Nhắc nhở 12h & 21h</span>
@@ -254,13 +258,30 @@
                             </button>
 
                             <div style="padding: 10px 12px 4px 12px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9; margin-top: 4px;">
-                                <span>Sổ Thu Chi • Phiên bản 1.7.7</span>
+                                <span>Sổ Thu Chi • Phiên bản 1.7.8 (Mới Nhất)</span>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
         </header>
+
+        <!-- Banner Tự Động Nhắc Nhở Cập Nhật Phiên Bản Mới v1.7.8 -->
+        <div class="update-app-banner" id="updateAppBanner" style="display: none;">
+            <div class="update-banner-left">
+                <span class="update-pulse-icon">🚀</span>
+                <div class="update-banner-text">
+                    <strong>Đã có phiên bản mới v1.7.8!</strong>
+                    <span>Có Sổ Công Nợ, bóc tách ghi chú & thanh điều hướng Mobile.</span>
+                </div>
+            </div>
+            <div class="update-banner-actions">
+                <button type="button" class="btn-update-now" onclick="handleForceUpdateApp()">
+                    <i class="fa-solid fa-arrows-rotate"></i> Cập Nhật Ngay
+                </button>
+                <button type="button" class="btn-dismiss-update" onclick="document.getElementById('updateAppBanner').style.display='none'" title="Bỏ qua">&times;</button>
+            </div>
+        </div>
 
         <!-- Banner Thông Báo Lời Mời Nổi Bật Trên Đầu Trang -->
         <div class="invitation-alert-banner" id="invitationAlertBanner" style="display: none;">
@@ -1321,7 +1342,58 @@
 
     <!-- PWA Offline-First Service Worker Registration & Self-Injection -->
     <script>
-        // 1. Tự động ghi ngay mã HTML hiện tại vào Cache Storage (Bảo hiểm 100% không bao giờ trắng trang)
+        const CURRENT_APP_VERSION = '1.7.8';
+
+        // 1. Hàm Tự Động Nâng Cấp 1-Chạm (Bypass & Xóa Sạch Mọi Cache Cũ)
+        window.handleForceUpdateApp = async function() {
+            const btn = document.getElementById('btnMenuForceUpdate');
+            if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Đang nâng cấp...</span>';
+            
+            if (typeof showToast === 'function') {
+                showToast('⏳ Đang dọn dẹp bộ nhớ đệm và tải bản v1.7.8...');
+            }
+
+            try {
+                // Xóa toàn bộ Cache Storage của trình duyệt điện thoại
+                if ('caches' in window) {
+                    const keys = await caches.keys();
+                    await Promise.all(keys.map(k => caches.delete(k)));
+                }
+
+                // Hủy đăng ký Service Worker cũ
+                if ('serviceWorker' in navigator) {
+                    const regs = await navigator.serviceWorker.getRegistrations();
+                    for (const reg of regs) {
+                        await reg.unregister();
+                    }
+                }
+            } catch (e) {
+                console.warn('Lỗi dọn cache:', e);
+            }
+
+            // Ép buộc tải lại trang kèm timestamp ngẫu nhiên để nhà mạng / trình duyệt không dùng cache cũ
+            setTimeout(() => {
+                const cleanUrl = window.location.origin + window.location.pathname;
+                window.location.href = cleanUrl + '?force_update=' + Date.now();
+            }, 300);
+        };
+
+        // 2. Tự động kiểm tra bản cập nhật từ Máy chủ
+        async function checkServerAppVersion() {
+            try {
+                const res = await fetch('./version.json?t=' + Date.now(), { cache: 'no-store' });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.version && data.version !== CURRENT_APP_VERSION) {
+                        const banner = document.getElementById('updateAppBanner');
+                        if (banner) banner.style.display = 'flex';
+                    }
+                }
+            } catch (e) {}
+        }
+        setTimeout(checkServerAppVersion, 1200);
+
+        // 3. Tự động ghi ngay mã HTML hiện tại vào Cache Storage mới nhất v1.7.8
         if ('caches' in window) {
             caches.open('sothuchi-offline-v1.7.8').then(cache => {
                 if (document.documentElement && document.documentElement.outerHTML) {
@@ -1332,15 +1404,30 @@
             }).catch(() => {});
         }
 
-        // 2. Kích hoạt Service Worker ngay lập tức (không chờ load)
+        // 4. Kích hoạt Service Worker & Lắng nghe bản mới
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('./sw.js', { scope: '/' })
                 .then(reg => {
-                    console.log('✅ PWA Offline Service Worker đã kích hoạt:', reg.scope);
+                    console.log('✅ PWA Offline Service Worker v1.7.8 đã kích hoạt:', reg.scope);
                     reg.update().catch(() => {});
+                    
+                    // Nếu phát hiện worker mới đang chờ -> Hiện banner cập nhật ngay
                     if (reg.waiting) {
-                        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                        const banner = document.getElementById('updateAppBanner');
+                        if (banner) banner.style.display = 'flex';
                     }
+
+                    reg.addEventListener('updatefound', () => {
+                        const newWorker = reg.installing;
+                        if (newWorker) {
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    const banner = document.getElementById('updateAppBanner');
+                                    if (banner) banner.style.display = 'flex';
+                                }
+                            });
+                        }
+                    });
                 })
                 .catch(err => {
                     console.warn('SW registration failed:', err);

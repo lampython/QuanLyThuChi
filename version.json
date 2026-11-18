@@ -1,0 +1,13 @@
+{
+  "version": "1.7.8",
+  "build": 178,
+  "name": "Sổ Thu Chi",
+  "updatedAt": "2026-11-18T12:10:00+07:00",
+  "features": [
+    "Phân hệ Quản Lý Công Nợ & Vay Mượn (Debt & Loan Management)",
+    "Bóc tách ghi chú thông minh hàng loạt từ Keep, Notes, Zalo",
+    "Thanh điều hướng dưới đáy Mobile (Mobile Bottom Navigation)",
+    "Nút Sổ Công Nợ trên giao diện Mobile và Webapp",
+    "Tự động cấn trừ công nợ & đồng bộ 2 chiều vào Sổ Thu Chi"
+  ]
+}

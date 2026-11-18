@@ -1,5 +1,5 @@
-// Sổ Thu Chi - Service Worker v1.7.5 (Hợp Nhất 1 Kho Duy Nhất - Kiến Trúc v7.5 Chuẩn Mực)
-const CACHE_NAME = 'sothuchi-offline-v1.7.5';
+// Sổ Thu Chi - Service Worker v1.7.8 (Network-First Smart Auto-Update Architecture)
+const CACHE_NAME = 'sothuchi-offline-v1.7.8';
 
 const OFFLINE_URLS = [
     '/',
@@ -41,7 +41,7 @@ self.addEventListener('install', (event) => {
     );
 });
 
-// 2. Kích hoạt: Claim clients ngay & dọn dẹp các kho cũ khác
+// 2. Kích hoạt: Claim clients ngay & XÓA SẠCH MỌI KHO CACHE CŨ (v1.7.5, v1.7.7...)
 self.addEventListener('activate', (event) => {
     event.waitUntil(
         Promise.all([
@@ -50,6 +50,7 @@ self.addEventListener('activate', (event) => {
                 return Promise.all(
                     keys.map((k) => {
                         if (k !== CACHE_NAME) {
+                            console.log('[SW] Đang dọn dẹp kho cache cũ:', k);
                             return caches.delete(k);
                         }
                     })
@@ -65,7 +66,7 @@ self.addEventListener('message', (event) => {
     }
 });
 
-// 3. Phục vụ yêu cầu mạng (Fetch) - NGUYÊN BẢN LOGIC V7.5 SIÊU MƯỢT
+// 3. Phục vụ yêu cầu mạng (Fetch)
 self.addEventListener('fetch', (event) => {
     if (event.request.method !== 'GET') return;
 
@@ -76,39 +77,43 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // A. MỞ ỨNG DỤNG / ĐIỀU HƯỚNG TRANG (HTML NAVIGATION)
+    // Luôn luôn lấy version.json trực tiếp từ mạng (Network-Only) để phát hiện bản mới tức thì
+    if (url.pathname.endsWith('version.json')) {
+        event.respondWith(fetch(event.request));
+        return;
+    }
+
+    // A. MỞ ỨNG DỤNG / ĐIỀU HƯỚNG TRANG (HTML NAVIGATION) - NETWORK-FIRST ĐỂ NHẬN BẢN MỚI NGAY LẬP TỨC
     if (event.request.mode === 'navigate' || event.request.destination === 'document' || (event.request.headers.get('accept') && event.request.headers.get('accept').includes('text/html'))) {
         event.respondWith(
             (async () => {
                 const cache = await caches.open(CACHE_NAME);
 
-                // ƯU TIÊN 1: Lấy ngay từ Cache nếu có (Mở app trong 0.005s, không bao giờ chờ mạng)
+                // ƯU TIÊN 1: Nếu đang có mạng -> Thử tải trực tiếp bản mới nhất từ Server (timeout nhanh 1500ms)
+                if (navigator.onLine) {
+                    try {
+                        const controller = new AbortController();
+                        const timer = setTimeout(() => controller.abort(), 1500);
+                        const networkResponse = await fetch(event.request, { signal: controller.signal });
+                        clearTimeout(timer);
+
+                        if (networkResponse && networkResponse.status === 200) {
+                            cache.put('/index.html', networkResponse.clone());
+                            cache.put('/', networkResponse.clone());
+                            return networkResponse;
+                        }
+                    } catch (e) {
+                        // Rớt mạng hoặc mạng quá lag -> Fallback sang cache
+                    }
+                }
+
+                // ƯU TIÊN 2: Lấy từ Cache khi mất mạng hoặc timeout
                 const cachedPage = await cache.match(event.request, { ignoreSearch: true }) ||
                                    await cache.match('/index.html', { ignoreSearch: true }) ||
                                    await cache.match('/', { ignoreSearch: true });
-
                 if (cachedPage) {
-                    // Nếu đang có mạng -> Tải ngầm bản mới nhất để cập nhật cho lần sau
-                    if (navigator.onLine) {
-                        fetch(event.request).then((networkRes) => {
-                            if (networkRes && networkRes.status === 200) {
-                                cache.put('/index.html', networkRes.clone());
-                                cache.put('/', networkRes.clone());
-                            }
-                        }).catch(() => {});
-                    }
                     return cachedPage;
                 }
-
-                // ƯU TIÊN 2: Nếu chưa có cache -> Thử tải mạng
-                try {
-                    const networkResponse = await fetch(event.request);
-                    if (networkResponse && networkResponse.status === 200) {
-                        cache.put('/index.html', networkResponse.clone());
-                        cache.put('/', networkResponse.clone());
-                        return networkResponse;
-                    }
-                } catch (e) {}
 
                 // Fallback nếu rủi ro mạng lỗi
                 return new Response('<!DOCTYPE html><html><body style="font-family: sans-serif; text-align: center; padding: 40px;"><h3>📱 Đang tải Sổ Thu Chi...</h3><p>Vui lòng kết nối mạng 1 lần để ứng dụng lưu vào máy.</p></body></html>', {
@@ -123,10 +128,13 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
         (async () => {
             const cache = await caches.open(CACHE_NAME);
-            const cachedAsset = await cache.match(event.request, { ignoreSearch: true });
+            
+            // Nếu URL có query version (?v=...) -> KHÔNG bỏ qua search string để phân biệt chính xác phiên bản
+            const hasVersionQuery = url.search.includes('v=');
+            const cachedAsset = await cache.match(event.request, { ignoreSearch: !hasVersionQuery });
 
             if (cachedAsset) {
-                // Nếu có mạng -> Tải ngầm cập nhật
+                // Tải ngầm cập nhật nếu có mạng
                 if (navigator.onLine) {
                     fetch(event.request).then((res) => {
                         if (res && res.status === 200) {
